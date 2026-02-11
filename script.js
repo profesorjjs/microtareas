@@ -1504,20 +1504,20 @@ submitAllBtn?.addEventListener("click", async () => {
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT1_AUTOEXP",
-      imageDataUrl: img1
+      dataUrl: img1
     });
 
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
-      imageDataUrl: img2,
+      dataUrl: img2,
       text280: task2Text
     });
 
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT3_TRANSFORM",
-      imageDataUrl: img3
+      dataUrl: img3
     });
 
     if (msg) {
@@ -1792,7 +1792,7 @@ async function loadNextPhotoForExpert() {
     const photo = pending[randomIndex];
     currentPhotoForExpert = photo;
 
-    ratingPhoto.src = photo.dataUrl;
+    ratingPhoto.src = photo.dataUrl || photo.imageDataUrl || "";
 
     const aiText1 = photo.aiScore != null ? ` | AI_PUNTF: ${photo.aiScore}` : "";
     const aiText2 = photo.localAdvanced?.localAdvancedScore != null
