@@ -154,7 +154,20 @@ backButtons.forEach(btn => {
     const accessPassword = document.getElementById("access-password");
     if (roleSelect) roleSelect.value = "";
     if (accessPassword) accessPassword.value = "";
+
+    // Asegura que, al volver y acceder de nuevo, no queden datos del alumno anterior
+    resetUploaderState({ newParticipant: true });
   });
+
+
+// Al cargar la página, limpia posibles restos de una participación previa en este dispositivo
+window.addEventListener("load", () => {
+  try {
+    resetUploaderState({ newParticipant: true });
+  } catch (err) {
+    console.error(err);
+  }
+});
 });
 
 // ---- APLICAR CONFIGURACIÓN ----
@@ -1112,8 +1125,8 @@ document.getElementById("login-button").addEventListener("click", () => {
   loginSection.classList.add("hidden");
 
   if (role === "uploader") {
+    resetUploaderState({ newParticipant: true });
     showSection("upload");
-    showWizardStepByIndex(0);
   } else if (role === "expert") {
     showSection("expert");
   } else if (role === "admin") {
@@ -1271,6 +1284,64 @@ function ensureParticipantId() {
   }
   return id;
 }
+
+function clearParticipantId() {
+  try {
+    localStorage.removeItem("cbqd_participant_id");
+  } catch (_) {}
+}
+
+// Reinicia el estado del alumnado para evitar que aparezcan datos del participante anterior
+function resetUploaderState({ newParticipant = true } = {}) {
+  // Formularios del wizard
+  const forms = ["step1-form", "task1-form", "task2-form", "task3-form"];
+  forms.forEach(id => {
+    const f = document.getElementById(id);
+    if (f && typeof f.reset === "function") f.reset();
+  });
+
+  // Ocultar bloques condicionales
+  if (typeof bachWrapper !== "undefined" && bachWrapper) bachWrapper.style.display = "none";
+  if (typeof centerWrapper !== "undefined" && centerWrapper) centerWrapper.style.display = globalConfig.askCenter ? "block" : "none";
+
+  // Limpiar radios CBQD explícitamente
+  document.querySelectorAll('input[type="radio"][name^="cbqd_"]').forEach(r => { r.checked = false; });
+
+  // Limpiar previews y análisis de microtareas
+  const previewIds = [
+    "task1-preview", "task2-preview", "task3-preview",
+    "task1-ai-analysis", "task2-ai-analysis", "task3-ai-analysis"
+  ];
+  previewIds.forEach(id => document.getElementById(id)?.classList?.add("hidden"));
+
+  const metaIds = ["task1-preview-meta","task2-preview-meta","task3-preview-meta"];
+  metaIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
+
+  const imgIds = ["task1-preview-image","task2-preview-image","task3-preview-image"];
+  imgIds.forEach(id => { const el = document.getElementById(id); if (el) el.src = ""; });
+
+  const scoreIds = [
+    "task1-ai-light","task1-ai-local","task1-ai-deep","task1-ai-deep-expl",
+    "task2-ai-light","task2-ai-local","task2-ai-deep","task2-ai-deep-expl",
+    "task3-ai-light","task3-ai-local","task3-ai-deep","task3-ai-deep-expl",
+    "cbqd-total","cbqd-subscales"
+  ];
+  scoreIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
+
+  // Cache de IA
+  if (typeof microtaskAiCache !== "undefined") {
+    microtaskAiCache = {};
+  }
+
+  // Vuelve al paso 1 del wizard
+  if (typeof showWizardStepByIndex === "function") {
+    showWizardStepByIndex(0);
+  }
+
+  // Nuevo participante (evita arrastrar identificación entre alumnos)
+  if (newParticipant) clearParticipantId();
+}
+
 
 function newSessionId() {
   return `S_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -1666,46 +1737,6 @@ submitAllBtn?.addEventListener("click", async () => {
       lastSeenAt: submittedAt
     }, { merge: true });
 
-    const sessionRef = doc(db, "sessions", sessionId);
-    await setDoc(sessionRef, {
-      sessionId,
-      participantId,
-      submittedAt,
-      demographics: {
-        age: ageValue,
-        gender,
-        studies,
-        bachType,
-        vocation,
-        studiesFather,
-        studiesMother,
-        rep,
-        fail,
-        pcsHome,
-        pcRoom,
-        pcFrequency,
-        pcHours,
-        center: globalConfig.askCenter ? (center || "") : ""
-      },
-      cbqd: {
-        enabled: cbqdEnabledNow,
-        instrumentVersion: cbqdEnabledNow ? cbqdInstrumentVersion : "",
-        items: cbqdEnabledNow
-          ? cbqdItemsNow.map(it => ({ id: it.id, domain: it.domain || "GENERAL", text: it.text || "" }))
-          : [],
-        responses: cbqdResponses,
-        total: cbqdEnabledNow ? cbqdScores.total : null,
-        subscales: cbqdEnabledNow ? cbqdScores.subscales : {},
-        answered: cbqdEnabledNow ? cbqdScores.answered : 0,
-        missing: cbqdEnabledNow ? cbqdScores.missing : 0
-      },
-      tasks: {
-        MT1_AUTOEXP: { hasImage: true },
-        MT2_ESCOLAR: { hasImage: true, text280: task2Text },
-        MT3_TRANSFORM: { hasImage: true }
-      }
-    });
-
     const demographics = {
       age: ageValue,
       gender,
@@ -1770,7 +1801,8 @@ submitAllBtn?.addEventListener("click", async () => {
       cbqdEnabled: cbqdEnabledNow,
       cbqdVersion: cbqdInstrumentVersion,
       cbqdTotal: cbqdScores.total,
-      cbqdSubscales: cbqdScores.subscales
+      cbqdSubscales: cbqdScores.subscales,
+      cbqdResponses: cbqdResponses
     };
 
     await addDoc(photosCol, {
@@ -1808,6 +1840,10 @@ submitAllBtn?.addEventListener("click", async () => {
       msg.className = "message success";
       msg.textContent = "¡Enviado! Muchas gracias por participar.";
     }
+
+    // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
+    clearParticipantId();
+    microtaskAiCache = {};
 
   } catch (err) {
     console.error(err);
@@ -2530,11 +2566,16 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       }
 
       // Fallback (fotos antiguas)
-      const enabled = !!p?.cbqdEnabled;
-      const version = p?.cbqdVersion || "";
-      const total = (p?.cbqdTotal ?? "");
-      const subscales = p?.cbqdSubscales || {};
-      return { enabled, version, total, subscales, map: {} };
+const enabled = !!p?.cbqdEnabled;
+const version = p?.cbqdVersion || "";
+const total = (p?.cbqdTotal ?? "");
+const subscales = p?.cbqdSubscales || {};
+const map = {};
+const resp = Array.isArray(p?.cbqdResponses) ? p.cbqdResponses : [];
+resp.forEach(r => {
+  if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
+});
+return { enabled, version, total, subscales, map };
     }
 
     function photoRowBase(photoId, p, s, rOrNull) {
