@@ -1,971 +1,2435 @@
+// script.js (versión con Firebase + Firestore + IA ligera + IA local avanzada + IA profunda)
 
-/* ========= Datos ========= */
-const CBQD_ITEMS = [
+// ----- IMPORTS DE FIREBASE DESDE CDN -----
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc
+} from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-  { n: 1, t: "¿Has compartido imágenes o fotos a través de tus redes sociales (Facebook, Instagram, etcétera)?" },
-  { n: 2, t: "¿Has hecho un vídeo sobre algo personal y lo has publicado en YouTube?" },
-  { n: 3, t: "¿Has hecho publicaciones en tu blog sobre tus amigos y familiares?" },
-  { n: 4, t: "¿Has hecho publicaciones en tu blog sobre algún pasatiempo o actividad de ocio no relacionada con la escuela?" },
-  { n: 5, t: "¿Has hecho presentaciones usando PowerPoint, Prezi, KeyNote u otros?" },
-  { n: 6, t: "¿Has hecho vídeos o películas usando alguna aplicación de vídeo?" },
-  { n: 7, t: "¿Has publicado contenido creativo en las redes sociales?" },
-  { n: 8, t: "¿Has hecho un vídeo musical sobre ti o tu pandilla de amigos?" },
-  { n: 9, t: "¿Has contribuido en una página web (fansite) sobre tus programas de televisión o videojuegos favoritos?" },
-  { n: 10, t: "¿Has creado arte de fanáticos (fanart)?" },
-  { n: 11, t: "¿Has creado o desarrollado una aplicación para un dispositivo móvil?" },
-  { n: 12, t: "¿Has creado contenido nuevo para videojuegos?" },
-  { n: 13, t: "¿Has sido disyóquey para una emisora de radio o evento local?" },
-  { n: 14, t: "¿Has vendido algo que hayas hecho en un sitio web?" },
-  { n: 15, t: "¿Has ganado un premio por realizar una fotografía digital?" },
-  { n: 16, t: "¿Has desarrollado un blog o sitio web para una clase o proyecto escolar?" },
-  { n: 17, t: "¿Has participado en un club relacionado con la tecnología después de la escuela?" },
-  { n: 18, t: "¿Has creado algo usando una impresora en 3D?" },
-  { n: 19, t: "¿Has iniciado un grupo en redes sociales para promocionar una actividad u organización?" },
-  { n: 20, t: "¿Has creado un proyecto multimedia para una clase?" },
-  { n: 21, t: "¿Has creado un podcast?" },
-  { n: 22, t: "¿Has hecho un vídeo para un proyecto de clase?" },
-  { n: 23, t: "¿Has enviado algo que escribiste a un concurso online, digital o de radio?" },
-  { n: 24, t: "¿Has comenzado un nuevo blog?" },
-  { n: 25, t: "¿Se te ha pedido que contribuyas en un blog o en alguna de sus secciones?" },
-  { n: 26, t: "¿Has hecho animación digital usando herramientas web?" },
-  { n: 27, t: "¿Has hecho un mashup de música y lo has publicado online?" },
-  { n: 28, t: "¿Has enviado tu arte digital a una comunidad creativa online?" },
-  { n: 29, t: "¿Has ganado un concurso de arte digital?" },
-  { n: 30, t: "¿Has recibido clases de arte digital (Photoshop, animación 3D, etc.)?" },
-  { n: 31, t: "¿Has ganado dinero por publicidad en redes sociales o YouTube?" },
-  { n: 32, t: "¿Has recaudado dinero para un proyecto usando crowdfunding?" },
-  { n: 33, t: "¿Has creado tu propio blog de vídeos o webshow?" }
-
-];
-
-const LIKERT = [
-  { v: 0, t: "Nunca" },
-  { v: 1, t: "Rara vez" },
-  { v: 2, t: "A veces" },
-  { v: 3, t: "A menudo" },
-  { v: 4, t: "Muy a menudo" },
-];
-
-const DB_KEY = "cbqd_platform_v2";
-
-/* ========= Utilidades ========= */
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function showMsg(el, text, kind="info") {
-  el.textContent = text;
-  el.classList.add("show");
-  el.style.borderColor = kind === "error" ? "rgba(180,0,0,.25)" : "rgba(48,63,159,.18)";
-  el.style.background = kind === "error" ? "#fff5f5" : "#f7f7ff";
-}
-
-function hideMsg(el) {
-  el.classList.remove("show");
-  el.textContent = "";
-}
-
-function downloadText(filename, text, mime="text/plain") {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function safeId(s) {
-  return (s || "").trim().toUpperCase();
-}
-
-function clampInt(x, min, max) {
-  const n = Number.parseInt(x, 10);
-  if (Number.isNaN(n)) return null;
-  return Math.max(min, Math.min(max, n));
-}
-
-/* ========= Persistencia ========= */
-function loadDB() {
-  const raw = localStorage.getItem(DB_KEY);
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-function saveDB(db) {
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
-}
-
-function initDB() {
-  let db = loadDB();
-  if (db) return db;
-
-  db = {
-    users: {
-      "ADMIN": { role: "admin", password: "admin", active: true, createdAt: nowISO() },
-      "A001": { role: "student", password: "alumno", active: true, createdAt: nowISO() },
-      "E001": { role: "expert", password: "experto", active: true, createdAt: nowISO() },
-    },
-    submissions: {
-      // studentId: { cbqd: {answers:[], submittedAt}, micro: {photos:[{dataUrl, desc, submittedAt}...] , submittedAt}, }
-    },
-    ratings: {
-      // studentId: { expertId: { byMicro: [{creativity, technique, overall, comment, ratedAt}...], ratedAt } }
-    },
-    sessions: {} // no persist, but keeps schema
-  };
-  saveDB(db);
-  return db;
-}
-
-/* ========= Estado de sesión ========= */
-let DB = initDB();
-let SESSION = {
-  role: null,
-  userId: null
+// ----- CONFIGURACIÓN DE TU PROYECTO FIREBASE -----
+const firebaseConfig = {
+  apiKey: "AIzaSyAZdspFCOgzOPKPQ63b2MTs4ZjZz8QoBtg",
+  authDomain: "creatividad-digital.firebaseapp.com",
+  projectId: "creatividad-digital",
+  storageBucket: "creatividad-digital.firebasestorage.app",
+  messagingSenderId: "152517888172",
+  appId: "1:152517888172:web:c81a4ff025f68925453709"
 };
 
-/* ========= Selectores ========= */
-const els = {
-  loginSection: document.getElementById("login-section"),
-  role: document.getElementById("role"),
-  userId: document.getElementById("userId"),
-  password: document.getElementById("password"),
-  loginBtn: document.getElementById("login-btn"),
-  loginMsg: document.getElementById("login-msg"),
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  studentCbqdSection: document.getElementById("student-cbqd-section"),
-  cbqdForm: document.getElementById("cbqd-form"),
-  cbqdSubmit: document.getElementById("cbqd-submit"),
-  cbqdMsg: document.getElementById("cbqd-msg"),
-  logoutStudent1: document.getElementById("logout-student-1"),
+// Colecciones en Firestore
+const photosCol = collection(db, "photos");
+const ratingsCol = collection(db, "ratings");
+const configDocRef = doc(db, "config", "general");
 
-  studentMicroSection: document.getElementById("student-micro-section"),
-  microSteps: document.getElementById("micro-steps"),
-  microSubmit: document.getElementById("micro-submit"),
-  microMsg: document.getElementById("micro-msg"),
-  logoutStudent2: document.getElementById("logout-student-2"),
+// Ítems de valoración por defecto (expertos)
+const DEFAULT_RATING_ITEMS = [
+  { id: "item1", label: "Originalidad y novedad" },
+  { id: "item2", label: "Expresión creativa y emocional" },
+  { id: "item3", label: "Uso innovador de técnicas digitales" },
+  { id: "item4", label: "Composición visual y técnica" },
+  { id: "item5", label: "Interacción y cocreación" }
+];
 
-  expertSection: document.getElementById("expert-section"),
-  expertTarget: document.getElementById("expert-target"),
-  expertContent: document.getElementById("expert-content"),
-  expertRefresh: document.getElementById("expert-refresh"),
-  expertMsg: document.getElementById("expert-msg"),
-  logoutExpert: document.getElementById("logout-expert"),
 
-  adminSection: document.getElementById("admin-section"),
-  logoutAdmin: document.getElementById("logout-admin"),
-  tabs: Array.from(document.querySelectorAll(".tab")),
-  tabUsers: document.getElementById("tab-users"),
-  tabResults: document.getElementById("tab-results"),
-  tabExport: document.getElementById("tab-export"),
+// CBQD (cuestionario) por defecto
+const DEFAULT_CBQD_ENABLED = true;
+// Por defecto no incluimos ítems: deben configurarse en el panel de investigación con la versión validada que uses.
+const DEFAULT_CBQD_ITEMS = [];
 
-  newRole: document.getElementById("new-role"),
-  newId: document.getElementById("new-id"),
-  newPass: document.getElementById("new-pass"),
-  createUser: document.getElementById("create-user"),
-  adminUserMsg: document.getElementById("admin-user-msg"),
-  usersTable: document.getElementById("users-table"),
-
-  resultsView: document.getElementById("results-view"),
-
-  exportJson: document.getElementById("export-json"),
-  exportCsv: document.getElementById("export-csv"),
-  exportMsg: document.getElementById("export-msg"),
+// Configuración IA ligera por defecto
+const DEFAULT_AI_CONFIG = {
+  enabled: false,
+  features: {
+    brightness: { enabled: true, weight: 25 },
+    contrast: { enabled: true, weight: 25 },
+    colorfulness: { enabled: true, weight: 25 },
+    edgeDensity: { enabled: true, weight: 25 }
+  }
 };
 
-/* ========= UI helpers ========= */
-function hideAll() {
-  els.loginSection.classList.add("hidden");
-  els.studentCbqdSection.classList.add("hidden");
-  els.studentMicroSection.classList.add("hidden");
-  els.expertSection.classList.add("hidden");
-  els.adminSection.classList.add("hidden");
-}
+// Configuración por defecto de claves
+const DEFAULT_AUTH_CONFIG = {
+  uploaderPassword: "alumno2025",
+  expertPassword: "experto2025",
+  adminPassword: "admin2025"
+};
 
-function goTo(sectionEl) {
-  hideAll();
-  sectionEl.classList.remove("hidden");
-}
+// NUEVO: configuración por defecto de IA profunda (microservicio externo)
+const DEEP_AI_CONFIG = {
+  enabled: true, // pon false si quieres desactivarla temporalmente
+  endpoint: "https://TU-ENDPOINT-DEEP-AI.com/analyze", // ← CAMBIA ESTA URL
+  timeoutMs: 20000
+};
 
-function logout() {
-  SESSION = { role: null, userId: null };
-  els.userId.value = "";
-  els.password.value = "";
-  hideMsg(els.loginMsg);
-  goTo(els.loginSection);
-}
+// Configuración global simple
+let globalConfig = {
+  askCenter: false,
+  centers: [],
+  ratingItems: DEFAULT_RATING_ITEMS,
+  aiConfig: DEFAULT_AI_CONFIG,
+  authConfig: DEFAULT_AUTH_CONFIG,
+  deepAI: DEEP_AI_CONFIG,
 
-function getUser(userId) {
-  return DB.users[userId] || null;
-}
+  // CBQD
+  cbqdEnabled: DEFAULT_CBQD_ENABLED,
+  cbqdItems: DEFAULT_CBQD_ITEMS
+};
 
-function ensureSubmission(studentId) {
-  if (!DB.submissions[studentId]) DB.submissions[studentId] = {};
-  return DB.submissions[studentId];
-}
+// ----- GESTIÓN DE SECCIONES -----
+const loginSection = document.getElementById("login-section");
+const uploadSection = document.getElementById("upload-section");
+const expertSection = document.getElementById("expert-section");
+const adminSection = document.getElementById("admin-section");
 
-function isStudentComplete(studentId) {
-  const sub = DB.submissions[studentId] || {};
-  const cbqdDone = !!(sub.cbqd && Array.isArray(sub.cbqd.answers) && sub.cbqd.answers.length === CBQD_ITEMS.length);
-  const microDone = !!(sub.micro && Array.isArray(sub.micro.photos) && sub.micro.photos.length === 3 && sub.micro.photos.every(p => !!p.dataUrl));
-  return cbqdDone && microDone;
-}
+// Elementos de configuración visual
+const centerWrapper = document.getElementById("center-wrapper");
+const centerSelect = document.getElementById("center");
+const centerNote = document.getElementById("center-note");
+const askCenterToggle = document.getElementById("ask-center-toggle");
+const centersTextarea = document.getElementById("centers-textarea");
+const saveCentersButton = document.getElementById("save-centers-button");
+const ratingItemsTextarea = document.getElementById("rating-items-textarea");
+const saveRatingItemsButton = document.getElementById("save-rating-items-button");
+const resetDbButton = document.getElementById("reset-db-button");
+const studiesSelect = document.getElementById("studies");
+const bachWrapper = document.getElementById("bach-wrapper");
+const ageChart = document.getElementById("age-chart");
+const ageChartNote = document.getElementById("age-chart-note");
+const loadPhotosButton = document.getElementById("load-photos-button");
+const photosList = document.getElementById("photos-list");
 
-/* ========= Login ========= */
-function login() {
-  hideMsg(els.loginMsg);
+// IA ligera: controles en Admin
+const aiEnabledToggle = document.getElementById("ai-enabled-toggle");
+const aiBrightnessEnabled = document.getElementById("ai-brightness-enabled");
+const aiBrightnessWeight = document.getElementById("ai-brightness-weight");
+const aiContrastEnabled = document.getElementById("ai-contrast-enabled");
+const aiContrastWeight = document.getElementById("ai-contrast-weight");
+const aiColorfulnessEnabled = document.getElementById("ai-colorfulness-enabled");
+const aiColorfulnessWeight = document.getElementById("ai-colorfulness-weight");
+const aiEdgeDensityEnabled = document.getElementById("ai-edgedensity-enabled");
+const aiEdgeDensityWeight = document.getElementById("ai-edgedensity-weight");
+const saveAiConfigButton = document.getElementById("save-ai-config-button");
+// CBQD: controles en Admin
+const cbqdEnabledToggle = document.getElementById("cbqd-enabled-toggle");
+const cbqdItemsTextarea = document.getElementById("cbqd-items-textarea");
+const saveCbqdItemsButton = document.getElementById("save-cbqd-items-button");
 
-  const role = els.role.value;
-  const userId = safeId(els.userId.value);
-  const password = (els.password.value || "").trim();
 
-  if (!userId || !password) {
-    showMsg(els.loginMsg, "Falta el ID o la clave.", "error");
-    return;
-  }
+// Gestión de claves desde Admin
+const uploaderPasswordInput = document.getElementById("uploader-password-input");
+const expertPasswordInput = document.getElementById("expert-password-input");
+const adminPasswordInput = document.getElementById("admin-password-input");
+const savePasswordsButton = document.getElementById("save-passwords-button");
 
-  const user = getUser(userId);
-  if (!user || !user.active) {
-    showMsg(els.loginMsg, "Usuario inexistente o desactivado.", "error");
-    return;
-  }
+// Rating dinámico (expertos)
+const ratingItemsContainer = document.getElementById("rating-items-container");
+const puntfSpan = document.getElementById("puntf-value");
+let ratingControls = [];
 
-  if (user.role !== role) {
-    showMsg(els.loginMsg, "El perfil seleccionado no coincide con el usuario.", "error");
-    return;
-  }
+// Botones "Volver al inicio"
+const backButtons = document.querySelectorAll(".back-button");
+backButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    uploadSection.classList.add("hidden");
+    expertSection.classList.add("hidden");
+    adminSection.classList.add("hidden");
+    loginSection.classList.remove("hidden");
 
-  if (user.password !== password) {
-    showMsg(els.loginMsg, "Clave incorrecta.", "error");
-    return;
-  }
+    const roleSelect = document.getElementById("role-select");
+    const accessPassword = document.getElementById("access-password");
+    if (roleSelect) roleSelect.value = "";
+    if (accessPassword) accessPassword.value = "";
+  });
+});
 
-  SESSION = { role, userId };
-  if (role === "student") {
-    enterStudent();
-  } else if (role === "expert") {
-    enterExpert();
+// ---- APLICAR CONFIGURACIÓN ----
+function applyCentersToSelect() {
+  if (!centerSelect) return;
+
+  centerSelect.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  if (globalConfig.centers && globalConfig.centers.length > 0) {
+    defaultOption.value = "";
+    defaultOption.textContent = "Selecciona tu centro";
   } else {
-    enterAdmin();
+    defaultOption.value = "";
+    defaultOption.textContent = "No hay centros configurados";
+  }
+  centerSelect.appendChild(defaultOption);
+
+  if (Array.isArray(globalConfig.centers)) {
+    globalConfig.centers.forEach(name => {
+      const trimmed = (name || "").trim();
+      if (!trimmed) return;
+      const opt = document.createElement("option");
+      opt.value = trimmed;
+      opt.textContent = trimmed;
+      centerSelect.appendChild(opt);
+    });
+  }
+
+  if (centerNote) {
+    if (!globalConfig.centers || globalConfig.centers.length === 0) {
+      centerNote.textContent = "Pregunta a tu profesor/a si no aparece tu centro.";
+    } else {
+      centerNote.textContent = "";
+    }
   }
 }
 
-/* ========= CBQD UI ========= */
-function renderCBQDForm(existingAnswers) {
-  els.cbqdForm.innerHTML = "";
-  const wrap = document.createElement("div");
-  wrap.className = "micro";
+function applyConfigToUpload() {
+  if (!centerWrapper) return;
+  applyCentersToSelect();
+  centerWrapper.style.display = globalConfig.askCenter ? "block" : "none";
+}
 
-  CBQD_ITEMS.forEach((item, idx) => {
-    const card = document.createElement("div");
-    card.className = "micro-card";
-    const h = document.createElement("h3");
-    h.textContent = `Ítem ${item.n}`;
-    const p = document.createElement("p");
-    p.textContent = item.t;
+function applyAiConfigToAdmin() {
+  const ai = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
 
-    const sel = document.createElement("select");
-    sel.dataset.idx = String(idx);
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = "Selecciona una opción…";
-    sel.appendChild(opt0);
+  if (aiEnabledToggle) {
+    aiEnabledToggle.checked = !!ai.enabled;
+  }
 
-    LIKERT.forEach(o => {
-      const opt = document.createElement("option");
-      opt.value = String(o.v);
-      opt.textContent = o.t;
-      sel.appendChild(opt);
+  const feats = ai.features || DEFAULT_AI_CONFIG.features;
+
+  if (aiBrightnessEnabled && feats.brightness) {
+    aiBrightnessEnabled.checked = !!feats.brightness.enabled;
+    aiBrightnessWeight.value = feats.brightness.weight ?? 25;
+  }
+
+  if (aiContrastEnabled && feats.contrast) {
+    aiContrastEnabled.checked = !!feats.contrast.enabled;
+    aiContrastWeight.value = feats.contrast.weight ?? 25;
+  }
+
+  if (aiColorfulnessEnabled && feats.colorfulness) {
+    aiColorfulnessEnabled.checked = !!feats.colorfulness.enabled;
+    aiColorfulnessWeight.value = feats.colorfulness.weight ?? 25;
+  }
+
+  if (aiEdgeDensityEnabled && feats.edgeDensity) {
+    aiEdgeDensityEnabled.checked = !!feats.edgeDensity.enabled;
+    aiEdgeDensityWeight.value = feats.edgeDensity.weight ?? 25;
+  }
+}
+
+function applyConfigToAdmin() {
+  if (askCenterToggle) {
+    askCenterToggle.checked = !!globalConfig.askCenter;
+  }
+  if (centersTextarea) {
+    centersTextarea.value = (globalConfig.centers || []).join("\n");
+  }
+  if (ratingItemsTextarea) {
+    ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
+  }
+
+  // Claves de acceso
+  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+  if (uploaderPasswordInput) {
+    uploaderPasswordInput.value = auth.uploaderPassword || "";
+  }
+  if (expertPasswordInput) {
+    expertPasswordInput.value = auth.expertPassword || "";
+  }
+  if (adminPasswordInput) {
+    adminPasswordInput.value = auth.adminPassword || "";
+  }
+
+
+  // CBQD
+  if (cbqdEnabledToggle) {
+    cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
+  }
+  if (cbqdItemsTextarea) {
+    cbqdItemsTextarea.value = (globalConfig.cbqdItems || []).map(it => `${it.domain || "GENERAL"}|${it.text || ""}`.trim()).join("\n");
+  }
+
+  applyAiConfigToAdmin();
+}
+
+function buildRatingControls() {
+  if (!ratingItemsContainer) return;
+
+  ratingItemsContainer.innerHTML = "";
+  ratingControls = [];
+
+  const items = globalConfig.ratingItems && globalConfig.ratingItems.length
+    ? globalConfig.ratingItems
+    : DEFAULT_RATING_ITEMS;
+
+  items.forEach((item, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rating-item";
+
+    const labelEl = document.createElement("label");
+    const inputId = `rating-item-${item.id}`;
+    labelEl.setAttribute("for", inputId);
+    labelEl.textContent = `${index + 1}. ${item.label}`;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "1";
+    input.max = "10";
+    input.value = "5";
+    input.id = inputId;
+
+    const valueSpan = document.createElement("span");
+    valueSpan.textContent = "5";
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(valueSpan);
+
+    input.addEventListener("input", () => {
+      valueSpan.textContent = input.value;
+      updatePuntf();
     });
 
-    if (existingAnswers && existingAnswers[idx] !== undefined && existingAnswers[idx] !== null) {
-      sel.value = String(existingAnswers[idx]);
-    }
+    ratingItemsContainer.appendChild(wrapper);
 
-    card.appendChild(h);
-    card.appendChild(p);
-    card.appendChild(sel);
-    wrap.appendChild(card);
+    ratingControls.push({
+      config: item,
+      input,
+      valueSpan
+    });
   });
 
-  els.cbqdForm.appendChild(wrap);
+  updatePuntf();
 }
 
-function collectCBQDAnswers() {
-  const selects = Array.from(els.cbqdForm.querySelectorAll("select[data-idx]"));
-  const answers = new Array(CBQD_ITEMS.length).fill(null);
-  for (const s of selects) {
-    const idx = Number.parseInt(s.dataset.idx, 10);
-    const v = s.value;
-    if (v === "") return null;
-    answers[idx] = clampInt(v, 0, 4);
+function updatePuntf() {
+  if (!ratingControls.length) {
+    if (puntfSpan) puntfSpan.textContent = "0.0";
+    return;
   }
-  return answers;
+  const sum = ratingControls.reduce(
+    (acc, rc) => acc + Number(rc.input.value || 0),
+    0
+  );
+  const avg = sum / ratingControls.length;
+  if (puntfSpan) {
+    puntfSpan.textContent = avg.toFixed(1);
+  }
 }
 
-/* ========= Microexperimentos UI ========= */
-function renderMicro(studentId) {
-  els.microSteps.innerHTML = "";
+// Merge IA config con defaults
+function mergeAiConfig(dataAi) {
+  const base = JSON.parse(JSON.stringify(DEFAULT_AI_CONFIG));
+  if (!dataAi) return base;
 
-  const sub = ensureSubmission(studentId);
-  const existing = (sub.micro && sub.micro.photos) ? sub.micro.photos : [];
+  base.enabled = !!dataAi.enabled;
 
-  for (let i = 0; i < 3; i++) {
-    const card = document.createElement("div");
-    card.className = "micro-card";
-    const h = document.createElement("h3");
-    h.textContent = `Microexperimento ${i+1}`;
-    const p = document.createElement("p");
-    p.textContent = "Sube una fotografía (JPG/PNG/WebP) que represente tu respuesta a la tarea.";
+  const srcFeat = dataAi.features || {};
+  for (const key of Object.keys(base.features)) {
+    if (srcFeat[key]) {
+      base.features[key].enabled = !!srcFeat[key].enabled;
+      const w = Number(srcFeat[key].weight);
+      base.features[key].weight = Number.isFinite(w) ? w : base.features[key].weight;
+    }
+  }
+  return base;
+}
 
-    const file = document.createElement("input");
-    file.type = "file";
-    file.accept = "image/*";
-    file.dataset.micro = String(i);
+// Merge Auth config con defaults
+function mergeAuthConfig(dataAuth) {
+  const base = { ...DEFAULT_AUTH_CONFIG };
+  if (!dataAuth) return base;
 
-    const ta = document.createElement("textarea");
-    ta.placeholder = "Descripción breve (opcional)";
-    ta.dataset.desc = String(i);
+  if (typeof dataAuth.uploaderPassword === "string") {
+    base.uploaderPassword = dataAuth.uploaderPassword;
+  }
+  if (typeof dataAuth.expertPassword === "string") {
+    base.expertPassword = dataAuth.expertPassword;
+  }
+  if (typeof dataAuth.adminPassword === "string") {
+    base.adminPassword = dataAuth.adminPassword;
+  }
+  return base;
+}
 
-    const preview = document.createElement("div");
-    preview.className = "preview hidden";
-    const img = document.createElement("img");
-    preview.appendChild(img);
+// Merge DeepAI config con defaults
+function mergeDeepAIConfig(dataDeep) {
+  const base = { ...DEEP_AI_CONFIG };
+  if (!dataDeep) return base;
+  if (typeof dataDeep.enabled === "boolean") base.enabled = dataDeep.enabled;
+  if (typeof dataDeep.endpoint === "string") base.endpoint = dataDeep.endpoint;
+  const t = Number(dataDeep.timeoutMs);
+  if (Number.isFinite(t) && t > 0) base.timeoutMs = t;
+  return base;
+}
 
-    // restore
-    if (existing[i] && existing[i].dataUrl) {
-      img.src = existing[i].dataUrl;
-      preview.classList.remove("hidden");
-      ta.value = existing[i].desc || "";
+async function loadGlobalConfig() {
+  try {
+    const snap = await getDoc(configDocRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      globalConfig.askCenter = !!data.askCenter;
+      globalConfig.centers = Array.isArray(data.centers) ? data.centers : [];
+      if (Array.isArray(data.ratingItems) && data.ratingItems.length > 0) {
+        globalConfig.ratingItems = data.ratingItems.map((it, idx) => ({
+          id: it.id || `item${idx + 1}`,
+          label: it.label || `Ítem ${idx + 1}`
+        }));
+      } else {
+        globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+      }
+      globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
+      globalConfig.authConfig = mergeAuthConfig(data.authConfig);
+      globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
+      globalConfig.cbqdEnabled = (data.cbqdEnabled !== undefined) ? !!data.cbqdEnabled : DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdItems = Array.isArray(data.cbqdItems) ? data.cbqdItems : DEFAULT_CBQD_ITEMS;
+    } else {
+      globalConfig.askCenter = false;
+      globalConfig.centers = [];
+      globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+      globalConfig.aiConfig = DEFAULT_AI_CONFIG;
+      globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
+      globalConfig.deepAI = DEEP_AI_CONFIG;
+    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+    globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+    }
+  } catch (err) {
+    console.error("Error cargando configuración global:", err);
+    globalConfig.askCenter = false;
+    globalConfig.centers = [];
+    globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.aiConfig = DEFAULT_AI_CONFIG;
+    globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
+    globalConfig.deepAI = DEEP_AI_CONFIG;
+      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+      globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+  }
+
+  applyConfigToUpload();
+  applyConfigToAdmin();
+  buildRatingControls();
+}
+
+// Cargar configuración al inicio
+loadGlobalConfig();
+
+// Listener para mostrar/ocultar modalidad de Bachillerato según nivel
+if (studiesSelect && bachWrapper) {
+  studiesSelect.addEventListener("change", () => {
+    if (studiesSelect.value === "Bachillerato") {
+      bachWrapper.style.display = "block";
+    } else {
+      bachWrapper.style.display = "none";
+      const bachTypeSelect = document.getElementById("bach-type");
+      if (bachTypeSelect) bachTypeSelect.value = "";
+    }
+  });
+}
+
+// Listener del checkbox en el panel de admin para pedir centro educativo
+if (askCenterToggle) {
+  askCenterToggle.addEventListener("change", async () => {
+    const newValue = askCenterToggle.checked;
+    globalConfig.askCenter = newValue;
+    applyConfigToUpload();
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { askCenter: newValue };
+      if (!snap.exists()) {
+        payload.centers = globalConfig.centers || [];
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+    } catch (err) {
+      console.error("Error actualizando configuración:", err);
+      alert("No se ha podido guardar la configuración de centro educativo.");
+    }
+  });
+}
+
+// Guardar lista de centros desde el panel admin
+if (saveCentersButton) {
+  saveCentersButton.addEventListener("click", async () => {
+    if (!centersTextarea) return;
+    const rawLines = centersTextarea.value.split("\n");
+    const centersList = rawLines
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    globalConfig.centers = centersList;
+    applyConfigToUpload();
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { centers: centersList };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Lista de centros actualizada.");
+    } catch (err) {
+      console.error("Error guardando centros:", err);
+      alert("No se ha podido guardar la lista de centros.");
+    }
+  });
+}
+
+// Guardar ítems de valoración desde el panel admin
+if (saveRatingItemsButton) {
+  saveRatingItemsButton.addEventListener("click", async () => {
+    if (!ratingItemsTextarea) return;
+    const rawLines = ratingItemsTextarea.value.split("\n");
+    const labels = rawLines
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    if (!labels.length) {
+      alert("Debes introducir al menos un ítem de valoración.");
+      return;
     }
 
-    file.addEventListener("change", async (ev) => {
-      const f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      if (!f.type.startsWith("image/")) {
-        showMsg(els.microMsg, "Ese archivo no parece una imagen.", "error");
+    const ratingItems = labels.map((label, idx) => ({
+      id: `item${idx + 1}`,
+      label
+    }));
+
+    globalConfig.ratingItems = ratingItems;
+    buildRatingControls();
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { ratingItems };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.centers = globalConfig.centers || [];
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Ítems de valoración actualizados.");
+    } catch (err) {
+      console.error("Error guardando ítems de valoración:", err);
+      alert("No se ha podido guardar los ítems de valoración.");
+    }
+  });
+}
+
+// Guardar configuración IA ligera
+if (saveAiConfigButton) {
+  saveAiConfigButton.addEventListener("click", async () => {
+    const ai = {
+      enabled: aiEnabledToggle ? aiEnabledToggle.checked : false,
+      features: {
+        brightness: {
+          enabled: aiBrightnessEnabled ? aiBrightnessEnabled.checked : true,
+          weight: Number(aiBrightnessWeight?.value || 0)
+        },
+        contrast: {
+          enabled: aiContrastEnabled ? aiContrastEnabled.checked : true,
+          weight: Number(aiContrastWeight?.value || 0)
+        },
+        colorfulness: {
+          enabled: aiColorfulnessEnabled ? aiColorfulnessEnabled.checked : true,
+          weight: Number(aiColorfulnessWeight?.value || 0)
+        },
+        edgeDensity: {
+          enabled: aiEdgeDensityEnabled ? aiEdgeDensityEnabled.checked : true,
+          weight: Number(aiEdgeDensityWeight?.value || 0)
+        }
+      }
+    };
+
+    globalConfig.aiConfig = ai;
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { aiConfig: ai };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.centers = globalConfig.centers || [];
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Configuración de IA actualizada.");
+    } catch (err) {
+      console.error("Error guardando configuración IA:", err);
+      alert("No se ha podido guardar la configuración de IA.");
+    }
+  });
+}
+
+// Guardar claves de acceso
+if (savePasswordsButton) {
+  savePasswordsButton.addEventListener("click", async () => {
+    const current = mergeAuthConfig(globalConfig.authConfig);
+
+    const newAuthConfig = {
+      uploaderPassword: (uploaderPasswordInput?.value.trim() || current.uploaderPassword),
+      expertPassword: (expertPasswordInput?.value.trim() || current.expertPassword),
+      adminPassword: (adminPasswordInput?.value.trim() || current.adminPassword)
+    };
+
+    globalConfig.authConfig = newAuthConfig;
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { authConfig: newAuthConfig };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.centers = globalConfig.centers || [];
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Claves de acceso actualizadas. A partir de ahora se usarán las nuevas claves.");
+    } catch (err) {
+      console.error("Error guardando claves de acceso:", err);
+      alert("No se han podido guardar las nuevas claves de acceso.");
+    }
+  });
+}
+
+// Reinicializar base de datos (borrar todas las fotos y valoraciones)
+if (resetDbButton) {
+  resetDbButton.addEventListener("click", async () => {
+    const ok = confirm(
+      "Esta acción borrará TODAS las fotografías y valoraciones de la base de datos. " +
+      "La configuración (centros, ítems, IA, etc.) se mantendrá. ¿Seguro que quieres continuar?"
+    );
+    if (!ok) return;
+
+    try {
+      const [photosSnap, ratingsSnap] = await Promise.all([
+        getDocs(photosCol),
+        getDocs(ratingsCol)
+      ]);
+
+      const ops = [];
+      photosSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
+      ratingsSnap.forEach(docSnap => ops.push(deleteDoc(docSnap.ref)));
+
+      await Promise.all(ops);
+
+      alert("Base de datos reinicializada. Se han borrado todas las fotografías y valoraciones.");
+      if (photosList) photosList.innerHTML = "";
+      updateAdminSummary();
+    } catch (err) {
+      console.error("Error al reinicializar la base de datos:", err);
+      alert("Ha ocurrido un error al reinicializar la base de datos.");
+    }
+  });
+}
+
+// ================================================
+// Redimensionar y comprimir la imagen (adaptado a móvil)
+// ================================================
+function resizeImage(file, maxWidth = 1920, maxHeight = 1920, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    if (!file.type || !file.type.startsWith("image/")) {
+      reject(new Error("El archivo seleccionado no es una imagen."));
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        let width = img.width;
+        let height = img.height;
+
+        const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        URL.revokeObjectURL(url);
+        resolve(dataUrl);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se ha podido leer la imagen. El formato puede no ser compatible con este navegador."));
+    };
+
+    img.src = url;
+  });
+}
+
+// ================================================
+// IA ligera: análisis simple de la imagen en el cliente
+// ================================================
+function clamp01(x) {
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+
+function computeAiFeaturesFromDataUrl(dataUrl, aiConfig) {
+  return new Promise((resolve) => {
+    if (!aiConfig || !aiConfig.enabled) {
+      resolve({ features: null, score: null });
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // Reducimos la imagen a algo manejable, por ejemplo 256 px de lado mayor
+        const maxSide = 256;
+        let w = img.width;
+        let h = img.height;
+        const scale = Math.min(maxSide / w, maxSide / h, 1);
+        w = Math.max(1, Math.round(w * scale));
+        h = Math.max(1, Math.round(h * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        const n = w * h;
+
+        let sumLum = 0;
+        let sumLum2 = 0;
+        let sumColorDiff = 0;
+
+        const lumArr = new Float32Array(n);
+
+        // 1) Luminancia y colorfulness básica
+        for (let i = 0; i < n; i++) {
+          const r = data[i * 4] / 255;
+          const g = data[i * 4 + 1] / 255;
+          const b = data[i * 4 + 2] / 255;
+
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          lumArr[i] = lum;
+          sumLum += lum;
+          sumLum2 += lum * lum;
+
+          const cd = (Math.abs(r - g) + Math.abs(r - b) + Math.abs(g - b)) / 3;
+          sumColorDiff += cd;
+        }
+
+        const meanLum = sumLum / n;
+        const varLum = sumLum2 / n - meanLum * meanLum;
+        const stdLum = Math.sqrt(Math.max(varLum, 0));
+
+        const brightnessRaw = meanLum;            // 0–1
+        const contrastRaw = stdLum;               // ~0–0.4
+        const colorfulnessRaw = sumColorDiff / n; // 0–1 aprox
+
+        // 2) Edge density (muy simple, usando gradiente sobre luminancia)
+        let edgeSum = 0;
+        let edgeCount = 0;
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const idx = y * w + x;
+            const idxL = y * w + (x - 1);
+            const idxR = y * w + (x + 1);
+            const idxU = (y - 1) * w + x;
+            const idxD = (y + 1) * w + x;
+
+            const dx = lumArr[idxR] - lumArr[idxL];
+            const dy = lumArr[idxD] - lumArr[idxU];
+            const mag = Math.sqrt(dx * dx + dy * dy);
+            edgeSum += mag;
+            edgeCount++;
+          }
+        }
+        const edgeDensityRaw = edgeCount > 0 ? edgeSum / edgeCount : 0; // 0–~0.7
+
+        const features = {
+          brightness: brightnessRaw,
+          contrast: contrastRaw,
+          colorfulness: colorfulnessRaw,
+          edgeDensity: edgeDensityRaw
+        };
+
+        // Normalización heurística (0–1) por parámetro
+        function normalizeFeature(name, value) {
+          switch (name) {
+            case "brightness": {
+              // Queremos evitar fotos demasiado oscuras o quemadas:
+              // pico alrededor de 0.55, caída progresiva hacia 0 y 1
+              const val = value;
+              const tri = 1 - Math.abs(val - 0.55) / 0.55; // ~1 en 0.55, ~0 en 0 o 1
+              return clamp01(tri);
+            }
+            case "contrast": {
+              // Contraste interesante suele estar en torno a 0.25–0.35
+              const norm = value / 0.30;
+              return clamp01(norm);
+            }
+            case "colorfulness": {
+              // Colores ricos alrededor de 0.3–0.5
+              const norm = value / 0.35;
+              return clamp01(norm);
+            }
+            case "edgeDensity": {
+              // Complejidad estructural: útil hasta ~0.3
+              const norm = value / 0.25;
+              return clamp01(norm);
+            }
+            default:
+              return clamp01(value);
+          }
+        }
+
+        const normFeatures = {};
+        for (const key of Object.keys(features)) {
+          normFeatures[key] = normalizeFeature(key, features[key]);
+        }
+
+        const weights = aiConfig.features || {};
+        let num = 0;
+        let den = 0;
+
+        for (const key of Object.keys(features)) {
+          const fConf = weights[key];
+          if (!fConf || !fConf.enabled) continue;
+          const wgt = Number(fConf.weight) || 0;
+          if (wgt <= 0) continue;
+          num += normFeatures[key] * wgt;
+          den += wgt;
+        }
+
+        let score = null;
+        if (den > 0) {
+          const avg01 = num / den;
+
+          // Término de “sinergia”: combinación de contraste, color y bordes
+          const c = normFeatures.contrast ?? avg01;
+          const col = normFeatures.colorfulness ?? avg01;
+          const edge = normFeatures.edgeDensity ?? avg01;
+          const synergy = clamp01((c * col + col * edge + c * edge) / 3);
+
+          // Mezclamos media y sinergia para aumentar la variabilidad
+          const final01 = clamp01(0.7 * avg01 + 0.3 * synergy);
+
+          // Escala 0–10 con dos decimales
+          score = +(final01 * 10).toFixed(2);
+        }
+
+        resolve({ features, score });
+      } catch (err) {
+        console.error("Error calculando IA ligera:", err);
+        resolve({ features: null, score: null });
+      }
+    };
+
+    img.onerror = () => {
+      console.error("No se ha podido cargar la imagen para IA ligera.");
+      resolve({ features: null, score: null });
+    };
+
+    img.src = dataUrl;
+  });
+}
+
+// ================================================
+// IA local avanzada: análisis compositivo (tercios, horizonte, φ…)
+// ================================================
+async function computeLocalAdvancedAnalysis(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = img.width;
+        const H = img.height;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        const pix = ctx.getImageData(0, 0, W, H).data;
+
+        // ---- 1. Centro visual aproximado (contraste local) ----
+        let cx = 0, cy = 0, totalWeight = 0;
+        for (let y = 1; y < H - 1; y += 4) {
+          for (let x = 1; x < W - 1; x += 4) {
+            const idx = (y * W + x) * 4;
+            const r = pix[idx], g = pix[idx + 1], b = pix[idx + 2];
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            const idxR = (y * W + (x + 1)) * 4;
+            const r2 = pix[idxR], g2 = pix[idxR + 1], b2 = pix[idxR + 2];
+            const lum2 = 0.299 * r2 + 0.587 * g2 + 0.114 * b2;
+
+            const diff = Math.abs(lum - lum2);
+
+            cx += x * diff;
+            cy += y * diff;
+            totalWeight += diff;
+          }
+        }
+
+        let centerX = W / 2;
+        let centerY = H / 2;
+        if (totalWeight > 0) {
+          centerX = cx / totalWeight;
+          centerY = cy / totalWeight;
+        }
+
+        // ---- 2. Regla de los tercios ----
+        const tX1 = W / 3, tX2 = (2 * W) / 3;
+        const tY1 = H / 3, tY2 = (2 * H) / 3;
+        const maxDiag = Math.sqrt(W * W + H * H);
+
+        function dist(x1, y1, x2, y2) {
+          return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+        }
+
+        const d1 = dist(centerX, centerY, tX1, tY1);
+        const d2 = dist(centerX, centerY, tX2, tY1);
+        const d3 = dist(centerX, centerY, tX1, tY2);
+        const d4 = dist(centerX, centerY, tX2, tY2);
+        const minD = Math.min(d1, d2, d3, d4);
+        const thirdsScore01 = 1 - clamp01((minD / maxDiag) * 2.5);
+
+        // ---- 3. Horizonte (borde horizontal fuerte) ----
+        let bestY = 0;
+        let bestStrength = 0;
+
+        for (let y = 1; y < H - 1; y += 2) {
+          let rowDiff = 0;
+          for (let x = 1; x < W - 1; x += 4) {
+            const idx = (y * W + x) * 4;
+            const lum = 0.299 * pix[idx] + 0.587 * pix[idx + 1] + 0.114 * pix[idx + 2];
+
+            const idxD = ((y + 1) * W + x) * 4;
+            const lumD = 0.299 * pix[idxD] + 0.587 * pix[idxD + 1] + 0.114 * pix[idxD + 2];
+
+            rowDiff += Math.abs(lum - lumD);
+          }
+          if (rowDiff > bestStrength) {
+            bestStrength = rowDiff;
+            bestY = y;
+          }
+        }
+
+        const idealH1 = H / 3;
+        const idealH2 = (2 * H) / 3;
+        const dH = Math.min(Math.abs(bestY - idealH1), Math.abs(bestY - idealH2));
+        const horizonScore01 = 1 - clamp01((dH / H) * 1.8);
+
+        // ---- 4. Proporción áurea (φ) ----
+        const phi = 0.618;
+        const gx = W * phi;
+        const gy = H * phi;
+        const dG = dist(centerX, centerY, gx, gy);
+        const goldenScore01 = 1 - clamp01((dG / maxDiag) * 3.2);
+
+        // ---- 5. Saliencia básica por gradiente ----
+        let salSum = 0;
+        let salCount = 0;
+        for (let y = 1; y < H - 1; y += 3) {
+          for (let x = 1; x < W - 1; x += 3) {
+            const idx = (y * W + x) * 4;
+            const lumC = 0.299 * pix[idx] + 0.587 * pix[idx + 1] + 0.114 * pix[idx + 2];
+
+            const idxR = (y * W + (x + 1)) * 4;
+            const idxD = ((y + 1) * W + x) * 4;
+            const lumR = 0.299 * pix[idxR] + 0.587 * pix[idxR + 1] + 0.114 * pix[idxR + 2];
+            const lumD = 0.299 * pix[idxD] + 0.587 * pix[idxD + 1] + 0.114 * pix[idxD + 2];
+
+            const grad = Math.abs(lumC - lumR) + Math.abs(lumC - lumD);
+            salSum += grad;
+            salCount++;
+          }
+        }
+        const salRaw = salCount > 0 ? salSum / salCount : 0;
+        const salienceScore01 = clamp01(salRaw / 50);
+
+        const final01 =
+          0.35 * thirdsScore01 +
+          0.25 * horizonScore01 +
+          0.20 * goldenScore01 +
+          0.20 * salienceScore01;
+
+        const localAdvancedScore = +(clamp01(final01) * 10).toFixed(2);
+
+        resolve({
+          thirdsScore: +(thirdsScore01 * 10).toFixed(2),
+          horizonScore: +(horizonScore01 * 10).toFixed(2),
+          goldenScore: +(goldenScore01 * 10).toFixed(2),
+          salienceScore: +(salienceScore01 * 10).toFixed(2),
+          localAdvancedScore
+        });
+      } catch (err) {
+        console.error("Error IA local avanzada:", err);
+        resolve({
+          thirdsScore: null,
+          horizonScore: null,
+          goldenScore: null,
+          salienceScore: null,
+          localAdvancedScore: null
+        });
+      }
+    };
+
+    img.onerror = () => {
+      console.error("Error cargando imagen para IA avanzada.");
+      resolve({
+        thirdsScore: null,
+        horizonScore: null,
+        goldenScore: null,
+        salienceScore: null,
+        localAdvancedScore: null
+      });
+    };
+
+    img.src = dataUrl;
+  });
+}
+
+// ================================================
+// IA profunda — microservicio externo
+// ================================================
+async function computeDeepAI(dataUrl) {
+  const cfg = globalConfig.deepAI || DEEP_AI_CONFIG;
+  if (!cfg.enabled || !cfg.endpoint) {
+    return { deepScore: null, deepExplanation: null };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), cfg.timeoutMs || 20000);
+
+    const res = await fetch(cfg.endpoint, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      // Adapta la clave "imageBase64" al contrato real de tu microservicio
+      body: JSON.stringify({ imageBase64: dataUrl })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      console.warn("Deep AI: respuesta HTTP no OK:", res.status);
+      return { deepScore: null, deepExplanation: null };
+    }
+
+    const json = await res.json();
+    return {
+      deepScore: json.score ?? null,
+      deepExplanation: json.explanation ?? null
+    };
+  } catch (err) {
+    console.error("Error llamando a Deep AI:", err);
+    return { deepScore: null, deepExplanation: null };
+  }
+}
+
+// --------------------------------------------------------------
+// GESTIÓN DE SECCIONES Y LOGIN
+// --------------------------------------------------------------
+function showSection(sectionId) {
+  [uploadSection, expertSection, adminSection].forEach(sec => sec.classList.add("hidden"));
+  if (sectionId === "upload") uploadSection.classList.remove("hidden");
+  if (sectionId === "expert") expertSection.classList.remove("hidden");
+  if (sectionId === "admin") {
+    adminSection.classList.remove("hidden");
+    applyConfigToAdmin();
+    updateAdminSummary();
+  }
+}
+
+// ----- LOGIN / ACCESO POR ROL -----
+document.getElementById("login-button").addEventListener("click", () => {
+  const role = document.getElementById("role-select").value;
+  const password = document.getElementById("access-password").value.trim();
+
+  if (!role) {
+    alert("Selecciona un tipo de acceso.");
+    return;
+  }
+
+  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+  let expected = "";
+  if (role === "uploader") expected = auth.uploaderPassword;
+  else if (role === "expert") expected = auth.expertPassword;
+  else if (role === "admin") expected = auth.adminPassword;
+
+  if (password !== expected) {
+    alert("Clave incorrecta.");
+    return;
+  }
+
+  loginSection.classList.add("hidden");
+
+  if (role === "uploader") {
+    showSection("upload");
+    showWizardStepByIndex(0);
+  } else if (role === "expert") {
+    showSection("expert");
+  } else if (role === "admin") {
+    showSection("admin");
+  }
+});
+
+
+// ----- CBQD (ADMIN): activar/desactivar + configurar ítems -----
+if (cbqdEnabledToggle) {
+  cbqdEnabledToggle.addEventListener("change", async () => {
+    globalConfig.cbqdEnabled = !!cbqdEnabledToggle.checked;
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { cbqdEnabled: globalConfig.cbqdEnabled };
+      if (!snap.exists()) {
+        // crear doc completo con defaults mínimos
+        await setDoc(configDocRef, {
+          askCenter: globalConfig.askCenter,
+          centers: globalConfig.centers || [],
+          ratingItems: globalConfig.ratingItems || DEFAULT_RATING_ITEMS,
+          aiConfig: globalConfig.aiConfig || DEFAULT_AI_CONFIG,
+          authConfig: globalConfig.authConfig || DEFAULT_AUTH_CONFIG,
+          deepAI: globalConfig.deepAI || DEEP_AI_CONFIG,
+          cbqdEnabled: globalConfig.cbqdEnabled,
+          cbqdItems: globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS
+        });
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+    } catch (err) {
+      console.error("Error guardando cbqdEnabled:", err);
+      alert("No se ha podido guardar el estado del CBQD.");
+      // revertir visualmente
+      cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
+    }
+  });
+}
+
+if (saveCbqdItemsButton) {
+  saveCbqdItemsButton.addEventListener("click", async () => {
+    const raw = (cbqdItemsTextarea?.value || "")
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    const cbqdItems = raw.map((line, idx) => {
+      const [domainRaw, ...rest] = line.split("|");
+      const domain = (domainRaw || "").trim() || "GENERAL";
+      const text = rest.join("|").trim() || `Ítem ${idx + 1}`;
+      return { id: `cbqd_${idx + 1}`, domain, text };
+    });
+
+    globalConfig.cbqdItems = cbqdItems;
+    applyConfigToAdmin();
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { cbqdItems };
+      if (!snap.exists()) {
+        await setDoc(configDocRef, {
+          askCenter: globalConfig.askCenter,
+          centers: globalConfig.centers || [],
+          ratingItems: globalConfig.ratingItems || DEFAULT_RATING_ITEMS,
+          aiConfig: globalConfig.aiConfig || DEFAULT_AI_CONFIG,
+          authConfig: globalConfig.authConfig || DEFAULT_AUTH_CONFIG,
+          deepAI: globalConfig.deepAI || DEEP_AI_CONFIG,
+          cbqdEnabled: globalConfig.cbqdEnabled,
+          cbqdItems
+        });
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+
+      alert("CBQD actualizado.");
+    } catch (err) {
+      console.error("Error guardando CBQD:", err);
+      alert("No se ha podido guardar el CBQD.");
+    }
+  });
+}
+
+
+// ----- WIZARD DE PARTICIPACIÓN (CBQD + 3 microtareas) -----
+const wizardSteps = Array.from(document.querySelectorAll(".wizard-step"));
+const wizardProgressBar = document.getElementById("wizard-progress-bar");
+
+// Botones del wizard
+const wizardNext = document.getElementById("wizard-next");
+const wizardNext2 = document.getElementById("wizard-next-2");
+const wizardNext3 = document.getElementById("wizard-next-3");
+const wizardNext4 = document.getElementById("wizard-next-4");
+const wizardBack = document.getElementById("wizard-back");
+const wizardBack3 = document.getElementById("wizard-back-3");
+const wizardBack4 = document.getElementById("wizard-back-4");
+const wizardBack5 = document.getElementById("wizard-back-5");
+const submitAllBtn = document.getElementById("submit-all");
+
+const cbqdDisabledBox = document.getElementById("cbqd-disabled");
+const cbqdWarningBox = document.getElementById("cbqd-warning");
+const cbqdItemsHost = document.getElementById("cbqd-items");
+const cbqdScoreBox = document.getElementById("cbqd-scorebox");
+
+function computeWizardOrder() {
+  // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
+  const order = [1];
+  if (globalConfig.cbqdEnabled) order.push(2);
+  order.push(3, 4, 5);
+  return order;
+}
+
+let wizardOrder = computeWizardOrder();
+let wizardIdx = 0;
+
+function showWizardStepByIndex(idx) {
+  wizardOrder = computeWizardOrder();
+  wizardIdx = Math.min(Math.max(idx, 0), wizardOrder.length - 1);
+
+  const stepNumber = wizardOrder[wizardIdx];
+
+  wizardSteps.forEach(s => s.classList.add("hidden"));
+  const current = wizardSteps.find(s => Number(s.dataset.step) === stepNumber);
+  if (current) current.classList.remove("hidden");
+
+  const pct = (wizardIdx / (wizardOrder.length - 1)) * 100;
+  if (wizardProgressBar) wizardProgressBar.style.width = `${isFinite(pct) ? pct : 0}%`;
+
+  // estado CBQD (informativo)
+  if (stepNumber === 2) {
+    const items = globalConfig.cbqdItems || [];
+    if (!globalConfig.cbqdEnabled) {
+      cbqdDisabledBox?.classList.remove("hidden");
+      cbqdWarningBox?.classList.add("hidden");
+      cbqdScoreBox?.classList.add("hidden");
+    } else if (!items.length) {
+      cbqdDisabledBox?.classList.add("hidden");
+      cbqdWarningBox?.classList.remove("hidden");
+      cbqdScoreBox?.classList.add("hidden");
+      if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
+    } else {
+      cbqdDisabledBox?.classList.add("hidden");
+      cbqdWarningBox?.classList.add("hidden");
+      cbqdScoreBox?.classList.remove("hidden");
+      renderCbqd();
+    }
+  }
+}
+
+function ensureParticipantId() {
+  const key = "cbqd_participant_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = `P_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function renderCbqd() {
+  if (!cbqdItemsHost) return;
+
+  const items = globalConfig.cbqdItems || [];
+  cbqdItemsHost.innerHTML = "";
+
+  if (!items.length) {
+    return;
+  }
+
+  items.forEach((it, idx) => {
+    const box = document.createElement("div");
+    box.className = "cbqd-item";
+
+    const p = document.createElement("p");
+    p.innerHTML = `<strong>${idx + 1}.</strong> ${it.text}`;
+    box.appendChild(p);
+
+    const scale = document.createElement("div");
+    scale.className = "cbqd-scale";
+
+    for (let v = 1; v <= 5; v++) {
+      const lab = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `cbqd_${it.id}`;
+      input.value = String(v);
+      input.required = true;
+      input.addEventListener("change", updateCbqdScores);
+
+      lab.appendChild(input);
+      lab.appendChild(document.createTextNode(String(v)));
+      scale.appendChild(lab);
+    }
+
+    box.appendChild(scale);
+    cbqdItemsHost.appendChild(box);
+  });
+
+  updateCbqdScores();
+}
+
+function getCbqdResponses() {
+  const items = globalConfig.cbqdItems || [];
+  return items.map(it => {
+    const sel = document.querySelector(`input[name="cbqd_${it.id}"]:checked`);
+    return {
+      id: it.id,
+      domain: it.domain || "GENERAL",
+      value: sel ? Number(sel.value) : null
+    };
+  });
+}
+
+function updateCbqdScores() {
+  const totalEl = document.getElementById("cbqd-total");
+  const subEl = document.getElementById("cbqd-subscales");
+
+  const resp = getCbqdResponses().filter(r => Number.isFinite(r.value));
+  if (!resp.length) {
+    if (totalEl) totalEl.textContent = "—";
+    if (subEl) subEl.innerHTML = "";
+    return;
+  }
+
+  const total = resp.reduce((a, r) => a + r.value, 0);
+  if (totalEl) totalEl.textContent = String(total);
+
+  const byDom = new Map();
+  resp.forEach(r => {
+    const k = r.domain || "GENERAL";
+    byDom.set(k, (byDom.get(k) || 0) + r.value);
+  });
+
+  if (subEl) {
+    subEl.innerHTML = "";
+    for (const [dom, sum] of byDom.entries()) {
+      const p = document.createElement("p");
+      p.innerHTML = `<strong>${dom}:</strong> ${sum}`;
+      subEl.appendChild(p);
+    }
+  }
+}
+
+// contador microtarea 2
+const task2TextArea = document.getElementById("task2-text");
+task2TextArea?.addEventListener("input", () => {
+  const c = document.getElementById("task2-count");
+  if (c) c.textContent = String(task2TextArea.value.length);
+});
+
+// ==================================================
+// Análisis automático (IA) para microtareas (preview)
+// ==================================================
+// Cache en memoria para no recalcular continuamente.
+// Se recalcula de nuevo en el envío final por robustez.
+const microtaskAiCache = {
+  MT1_AUTOEXP: null,
+  MT2_ESCOLAR: null,
+  MT3_TRANSFORM: null
+};
+
+async function analyzeDataUrlForUi(dataUrl) {
+  // IA ligera
+  let aiFeatures = null;
+  let aiScore = null;
+  try {
+    const aiResult = await computeAiFeaturesFromDataUrl(dataUrl, globalConfig.aiConfig);
+    aiFeatures = aiResult.features;
+    aiScore = aiResult.score;
+  } catch (err) {
+    console.error("Error IA ligera:", err);
+  }
+
+  // IA local avanzada
+  let localAdvanced = null;
+  try {
+    localAdvanced = await computeLocalAdvancedAnalysis(dataUrl);
+  } catch (err) {
+    console.error("Error IA local avanzada:", err);
+    localAdvanced = {
+      thirdsScore: null,
+      horizonScore: null,
+      goldenScore: null,
+      salienceScore: null,
+      localAdvancedScore: null
+    };
+  }
+
+  // IA profunda (microservicio)
+  let deepAI = null;
+  try {
+    deepAI = await computeDeepAI(dataUrl);
+  } catch (err) {
+    console.error("Error IA profunda:", err);
+    deepAI = {
+      deepScore: null,
+      deepExplanation: null
+    };
+  }
+
+  return { aiFeatures, aiScore, localAdvanced, deepAI };
+}
+
+async function analyzeMicrotaskFileAndRender(taskId, file, els) {
+  if (!file) return;
+  if (!file.type?.includes("jpeg") && !file.name?.toLowerCase?.().endsWith(".jpg") && !file.name?.toLowerCase?.().endsWith(".jpeg")) {
+    // No forzamos error aquí: el navegador ya limita por accept; evitamos falsos positivos.
+  }
+
+  const { previewBox, previewImg, previewMeta, aiBox, aiLight, aiLocal, aiDeep, aiDeepExpl } = els;
+
+  // Mostrar placeholders
+  previewBox?.classList.remove("hidden");
+  aiBox?.classList.remove("hidden");
+  if (aiLight) aiLight.textContent = "…";
+  if (aiLocal) aiLocal.textContent = "…";
+  if (aiDeep) aiDeep.textContent = "…";
+  if (aiDeepExpl) aiDeepExpl.textContent = "";
+  if (previewMeta) previewMeta.textContent = "Procesando y analizando la imagen…";
+
+  // 1) Redimensionar
+  const dataUrl = await resizeImage(file);
+  if (previewImg) previewImg.src = dataUrl;
+
+  // 2) Analizar
+  const analysis = await analyzeDataUrlForUi(dataUrl);
+
+  // 3) Pintar resultados
+  const l = analysis.aiScore;
+  const loc = analysis.localAdvanced?.localAdvancedScore;
+  const d = analysis.deepAI?.deepScore;
+
+  if (aiLight) aiLight.textContent = l != null ? Number(l).toFixed(2) : "–";
+  if (aiLocal) aiLocal.textContent = loc != null ? Number(loc).toFixed(2) : "–";
+  if (aiDeep) aiDeep.textContent = d != null ? Number(d).toFixed(2) : "–";
+  if (aiDeepExpl) aiDeepExpl.textContent = analysis.deepAI?.deepExplanation || "";
+
+  if (previewMeta) {
+    const sizeKb = Math.round((dataUrl.length * 0.75) / 1024);
+    previewMeta.textContent = `Tamaño aproximado: ${sizeKb} KB`;
+  }
+
+  microtaskAiCache[taskId] = {
+    dataUrl,
+    ...analysis
+  };
+}
+
+function wireMicrotaskAi(taskId, inputId, prefix) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  const els = {
+    previewBox: document.getElementById(`${prefix}-preview`),
+    previewImg: document.getElementById(`${prefix}-preview-image`),
+    previewMeta: document.getElementById(`${prefix}-preview-meta`),
+    aiBox: document.getElementById(`${prefix}-ai-analysis`),
+    aiLight: document.getElementById(`${prefix}-ai-light`),
+    aiLocal: document.getElementById(`${prefix}-ai-local`),
+    aiDeep: document.getElementById(`${prefix}-ai-deep`),
+    aiDeepExpl: document.getElementById(`${prefix}-ai-deep-expl`)
+  };
+
+  input.addEventListener("change", async () => {
+    try {
+      const file = input.files?.[0];
+      if (!file) return;
+      await analyzeMicrotaskFileAndRender(taskId, file, els);
+    } catch (err) {
+      console.error(err);
+      els.previewBox?.classList.remove("hidden");
+      els.aiBox?.classList.remove("hidden");
+      if (els.previewMeta) els.previewMeta.textContent = "No se ha podido analizar esta imagen.";
+      if (els.aiLight) els.aiLight.textContent = "–";
+      if (els.aiLocal) els.aiLocal.textContent = "–";
+      if (els.aiDeep) els.aiDeep.textContent = "–";
+      if (els.aiDeepExpl) els.aiDeepExpl.textContent = "";
+    }
+  });
+}
+
+wireMicrotaskAi("MT1_AUTOEXP", "task1-photo", "task1");
+wireMicrotaskAi("MT2_ESCOLAR", "task2-photo", "task2");
+wireMicrotaskAi("MT3_TRANSFORM", "task3-output", "task3");
+
+// Navegación (validando por pasos)
+wizardNext?.addEventListener("click", () => {
+  const step1Form = document.getElementById("step1-form");
+  if (step1Form && !step1Form.reportValidity()) return;
+  showWizardStepByIndex(wizardIdx + 1);
+});
+
+wizardBack?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
+wizardBack3?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
+wizardBack4?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
+wizardBack5?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
+
+wizardNext2?.addEventListener("click", () => {
+  // si CBQD está activado y tiene ítems, exige completarlo
+  if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
+    const missing = getCbqdResponses().some(r => r.value === null);
+    if (missing) {
+      alert("Por favor, completa todos los ítems del CBQD.");
+      return;
+    }
+  }
+  showWizardStepByIndex(wizardIdx + 1);
+});
+
+wizardNext3?.addEventListener("click", () => {
+  const t1 = document.getElementById("task1-form");
+  if (t1 && !t1.reportValidity()) return;
+  showWizardStepByIndex(wizardIdx + 1);
+});
+
+wizardNext4?.addEventListener("click", () => {
+  const t2 = document.getElementById("task2-form");
+  if (t2 && !t2.reportValidity()) return;
+  showWizardStepByIndex(wizardIdx + 1);
+});
+
+submitAllBtn?.addEventListener("click", async () => {
+  const msg = document.getElementById("wizard-message");
+  if (msg) {
+    msg.textContent = "";
+    msg.className = "message";
+  }
+
+  try {
+    const step1Form = document.getElementById("step1-form");
+    const t1 = document.getElementById("task1-form");
+    const t2 = document.getElementById("task2-form");
+    const t3 = document.getElementById("task3-form");
+
+    if (step1Form && !step1Form.reportValidity()) return;
+    if (t1 && !t1.reportValidity()) return;
+    if (t2 && !t2.reportValidity()) return;
+    if (t3 && !t3.reportValidity()) return;
+
+    // CBQD (si procede)
+    if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
+      const missing = getCbqdResponses().some(r => r.value === null);
+      if (missing) {
+        alert("Por favor, completa todos los ítems del CBQD.");
         return;
       }
-      const dataUrl = await readFileAsDataURL(f);
-      img.src = dataUrl;
-      preview.classList.remove("hidden");
+    }
 
-      // save draft immediately
-      const s = ensureSubmission(studentId);
-      if (!s.micro) s.micro = { photos: [] };
-      if (!Array.isArray(s.micro.photos)) s.micro.photos = [];
-      s.micro.photos[i] = {
-        dataUrl,
-        desc: ta.value || "",
-        submittedAt: nowISO()
+    const participantId = ensureParticipantId();
+
+    // Demografía (campos ya existentes)
+    const ageValue = Number(document.getElementById("age")?.value || 0);
+    const gender = document.getElementById("gender")?.value || "";
+    const studies = document.getElementById("studies")?.value || "";
+    const bachType = document.getElementById("bach-type")?.value || "";
+    const vocation = document.getElementById("vocation")?.value?.trim?.() || "";
+    const studiesFather = document.getElementById("studies-father")?.value || "";
+    const studiesMother = document.getElementById("studies-mother")?.value || "";
+    const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
+    const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
+    const pcsHome = Number(document.getElementById("pcs-home")?.value || 0);
+    const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
+    const pcFrequency = document.getElementById("pc-frequency")?.value || "";
+    const pcHours = Number(document.getElementById("pc-hours")?.value || 0);
+    const center = document.getElementById("center")?.value || "";
+
+    const privacyOk = document.getElementById("privacy-ok")?.checked;
+    if (!privacyOk) throw new Error("Debes aceptar la política de privacidad.");
+
+    const cbqdResponses = (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length)
+      ? getCbqdResponses()
+      : [];
+
+    // Archivos microtareas
+    const f1 = document.getElementById("task1-photo")?.files?.[0];
+    const f2 = document.getElementById("task2-photo")?.files?.[0];
+    const f3 = document.getElementById("task3-output")?.files?.[0];
+    const task2Text = (document.getElementById("task2-text")?.value || "").trim();
+
+    if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
+    if (!task2Text || task2Text.length > 280) throw new Error("El texto de la microtarea 2 es obligatorio y ≤ 280 caracteres.");
+
+    // --- Preparar imágenes y análisis IA (por microtarea) ---
+    // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
+    async function getOrAnalyze(taskId, file) {
+      const cached = microtaskAiCache?.[taskId];
+      if (cached?.dataUrl) return cached;
+
+      const dataUrl = await resizeImage(file);
+      const analysis = await analyzeDataUrlForUi(dataUrl);
+      const full = { dataUrl, ...analysis };
+      microtaskAiCache[taskId] = full;
+      return full;
+    }
+
+    const [mt1, mt2, mt3] = await Promise.all([
+      getOrAnalyze("MT1_AUTOEXP", f1),
+      getOrAnalyze("MT2_ESCOLAR", f2),
+      getOrAnalyze("MT3_TRANSFORM", f3)
+    ]);
+
+    // Guardar participante
+    const participantRef = doc(db, "participants", participantId);
+    await setDoc(participantRef, {
+      participantId,
+      createdAt: Date.now(),
+      demographics: {
+        age: ageValue,
+        gender,
+        studies,
+        bachType,
+        vocation,
+        studiesFather,
+        studiesMother,
+        rep,
+        fail,
+        pcsHome,
+        pcRoom,
+        pcFrequency,
+        pcHours,
+        center: globalConfig.askCenter ? center : ""
+      },
+      cbqd: {
+        enabled: !!globalConfig.cbqdEnabled,
+        responses: cbqdResponses
+      }
+    }, { merge: true });
+
+    // Guardar artefactos como "photos" para integrarlos con valoración por expertos
+    const commonMeta = {
+      participantId,
+      createdAt: Date.now(),
+      age: ageValue,
+      gender,
+      studies,
+      center: globalConfig.askCenter ? center : ""
+    };
+
+    await addDoc(photosCol, {
+      ...commonMeta,
+      taskId: "MT1_AUTOEXP",
+      dataUrl: mt1.dataUrl,
+      aiFeatures: mt1.aiFeatures,
+      aiScore: mt1.aiScore,
+      localAdvanced: mt1.localAdvanced,
+      deepAI: mt1.deepAI
+    });
+
+    await addDoc(photosCol, {
+      ...commonMeta,
+      taskId: "MT2_ESCOLAR",
+      dataUrl: mt2.dataUrl,
+      text280: task2Text,
+      aiFeatures: mt2.aiFeatures,
+      aiScore: mt2.aiScore,
+      localAdvanced: mt2.localAdvanced,
+      deepAI: mt2.deepAI
+    });
+
+    await addDoc(photosCol, {
+      ...commonMeta,
+      taskId: "MT3_TRANSFORM",
+      dataUrl: mt3.dataUrl,
+      aiFeatures: mt3.aiFeatures,
+      aiScore: mt3.aiScore,
+      localAdvanced: mt3.localAdvanced,
+      deepAI: mt3.deepAI
+    });
+
+    if (msg) {
+      msg.className = "message success";
+      msg.textContent = "¡Enviado! Muchas gracias por participar.";
+    }
+
+  } catch (err) {
+    console.error(err);
+    if (msg) {
+      msg.className = "message error";
+      msg.textContent = err?.message || "Ha ocurrido un error al enviar.";
+    }
+  }
+});
+
+
+// ----- SUBIDA DE FOTOGRAFÍA (FIRESTORE + IA) -----
+const uploadForm = document.getElementById("upload-form");
+const uploadMessage = document.getElementById("upload-message");
+const uploadPreview = document.getElementById("upload-preview");
+const previewImage = document.getElementById("preview-image");
+const previewMeta = document.getElementById("preview-meta");
+
+// NUEVO: bloques de análisis automático en la vista de subida
+const uploadAiAnalysis = document.getElementById("upload-ai-analysis");
+const aiLightScoreSpan = document.getElementById("ai-light-score");
+const aiLocalScoreSpan = document.getElementById("ai-local-score");
+const aiDeepScoreSpan = document.getElementById("ai-deep-score");
+const aiDeepExplanationP = document.getElementById("ai-deep-explanation");
+
+if (uploadForm) uploadForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  uploadMessage.textContent = "";
+  uploadMessage.className = "message";
+
+  if (!uploadForm.reportValidity()) {
+    return;
+  }
+
+  const fileInput = document.getElementById("photo-file");
+  const ageValue = Number(document.getElementById("age").value);
+  const gender = document.getElementById("gender").value;
+  const studies = document.getElementById("studies").value;
+  const bachType = document.getElementById("bach-type").value || "";
+  const vocation = document.getElementById("vocation").value.trim();
+  const studiesFather = document.getElementById("studies-father").value;
+  const studiesMother = document.getElementById("studies-mother").value;
+
+  const rep = document.querySelector('input[name="rep"]:checked')?.value || "";
+  const fail = document.querySelector('input[name="fail"]:checked')?.value || "";
+  const pcsHome = Number(document.getElementById("pcs-home").value);
+  const pcRoom = document.querySelector('input[name="pc-room"]:checked')?.value || "";
+  const pcFrequency = document.getElementById("pc-frequency").value;
+  const pcHours = Number(document.getElementById("pc-hours").value);
+  const center = centerSelect ? centerSelect.value.trim() : "";
+
+  const privacyOk = document.getElementById("privacy-ok");
+
+  if (!Number.isFinite(ageValue) || ageValue < 10 || ageValue > 100) {
+    uploadMessage.textContent = "Introduce una edad válida entre 10 y 100 años.";
+    uploadMessage.classList.add("error");
+    return;
+  }
+
+  if (!privacyOk || !privacyOk.checked) {
+    uploadMessage.textContent = "Debes aceptar la política de privacidad.";
+    uploadMessage.classList.add("error");
+    return;
+  }
+
+  if (!fileInput.files || !fileInput.files[0]) {
+    uploadMessage.textContent = "Debes seleccionar una fotografía.";
+    uploadMessage.classList.add("error");
+    return;
+  }
+
+  const file = fileInput.files[0];
+
+  uploadMessage.textContent = "Procesando fotografía...";
+  uploadMessage.className = "message";
+
+  try {
+    const dataUrl = await resizeImage(file, 1920, 1920, 0.7);
+
+    if (dataUrl.length > 950000) {
+      uploadMessage.textContent =
+        "La fotografía sigue siendo demasiado pesada incluso tras comprimirla. Prueba con una imagen más pequeña.";
+      uploadMessage.classList.add("error");
+      return;
+    }
+
+    // IA ligera
+    let aiFeatures = null;
+    let aiScore = null;
+    try {
+      const aiResult = await computeAiFeaturesFromDataUrl(dataUrl, globalConfig.aiConfig);
+      aiFeatures = aiResult.features;
+      aiScore = aiResult.score;
+    } catch (err) {
+      console.error("Error IA ligera:", err);
+    }
+
+    // IA local avanzada
+    let localAdvanced = null;
+    try {
+      localAdvanced = await computeLocalAdvancedAnalysis(dataUrl);
+    } catch (err) {
+      console.error("Error IA local avanzada:", err);
+      localAdvanced = {
+        thirdsScore: null,
+        horizonScore: null,
+        goldenScore: null,
+        salienceScore: null,
+        localAdvancedScore: null
       };
-      saveDB(DB);
-      showMsg(els.microMsg, "Imagen guardada (borrador).", "info");
+    }
+
+    // IA profunda (microservicio)
+    let deepAI = null;
+    try {
+      deepAI = await computeDeepAI(dataUrl);
+    } catch (err) {
+      console.error("Error IA profunda:", err);
+      deepAI = {
+        deepScore: null,
+        deepExplanation: null
+      };
+    }
+
+    const docRef = await addDoc(photosCol, {
+      dataUrl: dataUrl,
+      age: ageValue,
+      gender: gender,
+      studies: studies,
+      bachType: bachType,
+      vocation: vocation,
+      studiesFather: studiesFather,
+      studiesMother: studiesMother,
+      rep: rep,
+      fail: fail,
+      pcsHome: pcsHome,
+      pcRoom: pcRoom,
+      pcFrequency: pcFrequency,
+      pcHours: pcHours,
+      center: center,
+
+      aiFeatures: aiFeatures,
+      aiScore: aiScore,
+
+      localAdvanced: localAdvanced,
+      deepAI: deepAI,
+
+      createdAt: new Date().toISOString()
     });
 
-    ta.addEventListener("input", () => {
-      const s = ensureSubmission(studentId);
-      if (!s.micro) s.micro = { photos: [] };
-      if (!Array.isArray(s.micro.photos)) s.micro.photos = [];
-      if (!s.micro.photos[i]) s.micro.photos[i] = { dataUrl: null, desc: "", submittedAt: null };
-      s.micro.photos[i].desc = ta.value || "";
-      saveDB(DB);
-    });
+    const photoId = docRef.id;
 
-    card.appendChild(h);
-    card.appendChild(p);
-    card.appendChild(file);
-    card.appendChild(ta);
-    card.appendChild(preview);
-    els.microSteps.appendChild(card);
+    uploadMessage.textContent = "Fotografía guardada correctamente en la base de datos. ¡Gracias por tu participación!";
+    uploadMessage.className = "message success";
+
+    uploadPreview.classList.remove("hidden");
+    previewImage.src = dataUrl;
+
+    const aiText = aiScore != null ? ` | AI_PUNTF: ${aiScore}` : "";
+    const localText = localAdvanced?.localAdvancedScore != null ? ` | IA_local: ${localAdvanced.localAdvancedScore}` : "";
+    const deepText = deepAI?.deepScore != null ? ` | IA_profunda: ${deepAI.deepScore}` : "";
+
+    previewMeta.textContent =
+      "ID: " + photoId +
+      " | Edad: " + ageValue +
+      " | Sexo: " + gender +
+      " | Estudios: " + studies +
+      " | Bachillerato: " + (bachType || "N/A") +
+      aiText + localText + deepText;
+
+    if (uploadAiAnalysis) {
+      uploadAiAnalysis.classList.remove("hidden");
+      if (aiLightScoreSpan) {
+        aiLightScoreSpan.textContent = aiScore != null ? aiScore.toFixed(2) : "–";
+      }
+      if (aiLocalScoreSpan) {
+        aiLocalScoreSpan.textContent =
+          localAdvanced?.localAdvancedScore != null
+            ? localAdvanced.localAdvancedScore.toFixed(2)
+            : "–";
+      }
+      if (aiDeepScoreSpan) {
+        aiDeepScoreSpan.textContent =
+          deepAI?.deepScore != null ? deepAI.deepScore.toFixed(2) : "–";
+      }
+      if (aiDeepExplanationP) {
+        aiDeepExplanationP.textContent = deepAI?.deepExplanation || "";
+      }
+    }
+
+    uploadForm.reset();
+    if (bachWrapper) bachWrapper.style.display = "none";
+    applyConfigToUpload(); // reconstruir select de centros tras reset
+  } catch (err) {
+    console.error("Error al procesar o guardar la fotografía:", err);
+    uploadMessage.textContent =
+      "Ha ocurrido un problema al procesar la fotografía. Es posible que el formato de la imagen no sea compatible en este dispositivo.";
+    uploadMessage.classList.add("error");
+  }
+});
+
+// ----- VALORACIÓN POR EXPERTOS -----
+const ratingArea = document.getElementById("rating-area");
+const noPhotosMessage = document.getElementById("no-photos-message");
+const photoRatingCard = document.getElementById("photo-rating-card");
+const ratingPhoto = document.getElementById("rating-photo");
+const ratingPhotoInfo = document.getElementById("rating-photo-info");
+const ratingMessage = document.getElementById("rating-message");
+
+let currentPhotoForExpert = null;
+
+document.getElementById("start-rating-button").addEventListener("click", () => {
+  const expertId = document.getElementById("expert-id").value.trim();
+  if (!expertId) {
+    alert("Introduce tu código de experto/a.");
+    return;
+  }
+
+  ratingArea.classList.remove("hidden");
+  loadNextPhotoForExpert();
+});
+
+
+function formatTaskId(taskId) {
+  switch (taskId) {
+    case "MT1_AUTOEXP": return "Microtarea 1 (autoexpresiva)";
+    case "MT2_ESCOLAR": return "Microtarea 2 (reinterpretación escolar)";
+    case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
+    default: return taskId || "—";
   }
 }
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+async function loadNextPhotoForExpert() {
+  const expertId = document.getElementById("expert-id").value.trim();
+  if (!expertId) return;
+
+  try {
+    const photosSnap = await getDocs(photosCol);
+    const photos = photosSnap.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    }));
+
+    const ratingsSnap = await getDocs(
+      query(ratingsCol, where("expertId", "==", expertId))
+    );
+
+    const ratedPhotoIds = new Set(
+      ratingsSnap.docs.map(d => d.data().photoId)
+    );
+
+    const pending = photos.filter(p => !ratedPhotoIds.has(p.id));
+
+    if (pending.length === 0) {
+      currentPhotoForExpert = null;
+      photoRatingCard.classList.add("hidden");
+      noPhotosMessage.classList.remove("hidden");
+      ratingMessage.textContent = "";
+      return;
+    }
+
+    noPhotosMessage.classList.add("hidden");
+    photoRatingCard.classList.remove("hidden");
+
+    const randomIndex = Math.floor(Math.random() * pending.length);
+    const photo = pending[randomIndex];
+    currentPhotoForExpert = photo;
+
+    ratingPhoto.src = photo.dataUrl || photo.imageDataUrl || "";
+
+    const aiText1 = photo.aiScore != null ? ` | AI_PUNTF: ${photo.aiScore}` : "";
+    const aiText2 = photo.localAdvanced?.localAdvancedScore != null
+      ? ` | IA_local: ${photo.localAdvanced.localAdvancedScore}`
+      : "";
+    const aiText3 = photo.deepAI?.deepScore != null
+      ? ` | IA_profunda: ${photo.deepAI.deepScore}`
+      : "";
+
+    ratingPhotoInfo.textContent =
+      `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
+      `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
+      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
+      aiText1 + aiText2 + aiText3;
+
+    ratingControls.forEach(rc => {
+      rc.input.value = 5;
+      rc.valueSpan.textContent = "5";
+    });
+    updatePuntf();
+    ratingMessage.textContent = "";
+  } catch (err) {
+    console.error(err);
+    noPhotosMessage.textContent = "Error cargando fotografías.";
+    noPhotosMessage.classList.remove("hidden");
+    photoRatingCard.classList.add("hidden");
+  }
+}
+
+// Guardar valoración de experto
+document.getElementById("save-rating-button").addEventListener("click", async () => {
+  if (!currentPhotoForExpert) return;
+
+  const expertId = document.getElementById("expert-id").value.trim();
+  if (!expertId) {
+    alert("Introduce tu código de experto/a.");
+    return;
+  }
+
+  if (!ratingControls.length) {
+    alert("No hay ítems de valoración configurados.");
+    return;
+  }
+
+  const ratingsMap = {};
+  let sum = 0;
+  ratingControls.forEach(rc => {
+    const v = Number(rc.input.value);
+    sum += v;
+    ratingsMap[rc.config.id] = v;
   });
+  const puntf = sum / ratingControls.length;
+
+  try {
+    await addDoc(ratingsCol, {
+      photoId: currentPhotoForExpert.id,
+      expertId,
+      ratings: ratingsMap,
+      puntf,
+      createdAt: new Date().toISOString()
+    });
+
+    ratingMessage.textContent = "Valoración guardada.";
+    ratingMessage.className = "message success";
+
+    loadNextPhotoForExpert();
+  } catch (err) {
+    console.error(err);
+    ratingMessage.textContent = "Error al guardar la valoración.";
+    ratingMessage.className = "message error";
+  }
+});
+
+// Omitir foto
+document.getElementById("skip-photo-button").addEventListener("click", () => {
+  loadNextPhotoForExpert();
+});
+
+// ----- PANEL ADMIN / RESUMEN + EXPORTAR CSV + VISUALIZACIÓN -----
+async function updateAdminSummary() {
+  try {
+    const photosSnap = await getDocs(photosCol);
+    const ratingsSnap = await getDocs(ratingsCol);
+
+    const summaryList = document.getElementById("admin-summary-list");
+    summaryList.innerHTML = "";
+
+    const li1 = document.createElement("li");
+    li1.textContent = `Número de fotografías almacenadas: ${photosSnap.size}`;
+    summaryList.appendChild(li1);
+
+    const li2 = document.createElement("li");
+    li2.textContent = `Número total de valoraciones registradas: ${ratingsSnap.size}`;
+    summaryList.appendChild(li2);
+
+    const expertIds = Array.from(
+      new Set(ratingsSnap.docs.map(d => d.data().expertId))
+    );
+    const li3 = document.createElement("li");
+    li3.textContent = `Número de expertos/as activos: ${expertIds.length}`;
+    summaryList.appendChild(li3);
+
+    renderAgeChart(photosSnap);
+  } catch (err) {
+    console.error(err);
+  }
 }
 
-/* ========= Entradas por rol ========= */
-function enterStudent() {
-  const studentId = SESSION.userId;
-  const sub = ensureSubmission(studentId);
+function renderAgeChart(photosSnap) {
+  if (!ageChart) return;
 
-  // Si ya completó todo, lo informamos y bloqueamos edición
-  if (isStudentComplete(studentId)) {
-    goTo(els.studentMicroSection);
-    els.microSubmit.disabled = true;
-    renderMicro(studentId);
-    showMsg(els.microMsg, "Tu envío ya está completo y registrado. Si necesitas corregir algo, contacta con administración.", "info");
+  const ageCounts = {};
+  photosSnap.docs.forEach(docSnap => {
+    const p = docSnap.data();
+    if (typeof p.age === "number") {
+      ageCounts[p.age] = (ageCounts[p.age] || 0) + 1;
+    }
+  });
+
+  ageChart.innerHTML = "";
+  if (ageChartNote) ageChartNote.textContent = "";
+
+  const ages = Object.keys(ageCounts).map(a => Number(a)).sort((a, b) => a - b);
+  if (ages.length === 0) {
+    if (ageChartNote) {
+      ageChartNote.textContent = "Todavía no hay datos suficientes para mostrar la distribución por edad.";
+    }
     return;
   }
 
-  // Si CBQD no está completo -> CBQD
-  const cbqdDone = !!(sub.cbqd && Array.isArray(sub.cbqd.answers) && sub.cbqd.answers.length === CBQD_ITEMS.length);
-  if (!cbqdDone) {
-    goTo(els.studentCbqdSection);
-    els.cbqdSubmit.disabled = false;
-    renderCBQDForm(sub.cbqd ? sub.cbqd.answers : null);
-    hideMsg(els.cbqdMsg);
-    return;
-  }
+  const maxCount = Math.max(...ages.map(a => ageCounts[a]));
+  ages.forEach(age => {
+    const row = document.createElement("div");
+    row.className = "chart-row";
 
-  // Si CBQD completo -> micro
-  goTo(els.studentMicroSection);
-  els.microSubmit.disabled = false;
-  renderMicro(studentId);
-  hideMsg(els.microMsg);
+    const label = document.createElement("span");
+    label.className = "chart-label";
+    label.textContent = `${age} años`;
+
+    const outer = document.createElement("div");
+    outer.className = "chart-bar-outer";
+
+    const inner = document.createElement("div");
+    inner.className = "chart-bar-inner";
+    const widthPercent = (ageCounts[age] / maxCount) * 100;
+    inner.style.width = `${widthPercent}%`;
+
+    outer.appendChild(inner);
+    row.appendChild(label);
+    row.appendChild(outer);
+    ageChart.appendChild(row);
+  });
+
+  if (ageChartNote) {
+    ageChartNote.textContent = "Cada barra representa el número relativo de fotografías por edad.";
+  }
 }
 
-function enterExpert() {
-  goTo(els.expertSection);
-  hideMsg(els.expertMsg);
-  renderExpertTargets();
-}
+// Listado de todas las fotografías y valoraciones
+async function loadAllPhotosWithRatings() {
+  if (!photosList) return;
+  photosList.textContent = "Cargando fotografías y valoraciones...";
 
-function enterAdmin() {
-  goTo(els.adminSection);
-  hideMsg(els.exportMsg);
-  hideMsg(els.adminUserMsg);
-  setActiveTab("users");
-  renderUsersTable();
-  renderResultsView();
-}
+  try {
+    const [photosSnap, ratingsSnap] = await Promise.all([
+      getDocs(photosCol),
+      getDocs(ratingsCol)
+    ]);
 
-/* ========= Acciones alumno ========= */
-function submitCBQD() {
-  hideMsg(els.cbqdMsg);
-  const studentId = SESSION.userId;
-  const answers = collectCBQDAnswers();
-  if (!answers) {
-    showMsg(els.cbqdMsg, "Falta alguna respuesta: revisa el formulario.", "error");
-    return;
-  }
-
-  const sub = ensureSubmission(studentId);
-  sub.cbqd = { answers, submittedAt: nowISO() };
-  saveDB(DB);
-
-  showMsg(els.cbqdMsg, "CBQD guardado. Ahora pasas a los microexperimentos 🙂");
-  // avanzar
-  enterStudent();
-}
-
-function submitMicro() {
-  hideMsg(els.microMsg);
-  const studentId = SESSION.userId;
-  const sub = ensureSubmission(studentId);
-
-  const cbqdDone = !!(sub.cbqd && Array.isArray(sub.cbqd.answers) && sub.cbqd.answers.length === CBQD_ITEMS.length);
-  if (!cbqdDone) {
-    showMsg(els.microMsg, "Antes debes completar el CBQD.", "error");
-    enterStudent();
-    return;
-  }
-
-  const photos = (sub.micro && Array.isArray(sub.micro.photos)) ? sub.micro.photos : [];
-  const ok = photos.length === 3 && photos.every(p => p && p.dataUrl);
-  if (!ok) {
-    showMsg(els.microMsg, "Te falta alguna fotografía. Necesitas completar los 3 microexperimentos.", "error");
-    return;
-  }
-
-  sub.micro.submittedAt = nowISO();
-  saveDB(DB);
-
-  els.microSubmit.disabled = true;
-  showMsg(els.microMsg, "Envío completado y registrado. ¡Gracias!", "info");
-}
-
-/* ========= Experto/a ========= */
-function renderExpertTargets() {
-  const options = [];
-  for (const [studentId, sub] of Object.entries(DB.submissions)) {
-    // Solo si hay micro completo (para valorar fotos)
-    const microDone = !!(sub.micro && Array.isArray(sub.micro.photos) && sub.micro.photos.length === 3 && sub.micro.photos.every(p => !!p.dataUrl));
-    if (!microDone) continue;
-    options.push(studentId);
-  }
-
-  els.expertTarget.innerHTML = "";
-  if (options.length === 0) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "No hay envíos con fotos todavía";
-    els.expertTarget.appendChild(opt);
-    els.expertContent.innerHTML = "";
-    return;
-  }
-
-  for (const id of options.sort()) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = id;
-    els.expertTarget.appendChild(opt);
-  }
-
-  els.expertTarget.onchange = () => renderExpertContent(els.expertTarget.value);
-  renderExpertContent(els.expertTarget.value);
-}
-
-function renderExpertContent(studentId) {
-  hideMsg(els.expertMsg);
-  els.expertContent.innerHTML = "";
-
-  if (!studentId) return;
-
-  const sub = DB.submissions[studentId];
-  const photos = sub.micro.photos;
-
-  const wrap = document.createElement("div");
-  wrap.className = "micro";
-
-  const existing = (DB.ratings[studentId] && DB.ratings[studentId][SESSION.userId]) ? DB.ratings[studentId][SESSION.userId] : null;
-  const existingByMicro = existing ? existing.byMicro : [];
-
-  for (let i = 0; i < 3; i++) {
-    const card = document.createElement("div");
-    card.className = "micro-card";
-
-    const h = document.createElement("h3");
-    h.textContent = `Microexperimento ${i+1}`;
-
-    const imgWrap = document.createElement("div");
-    imgWrap.className = "preview";
-    const img = document.createElement("img");
-    img.src = photos[i].dataUrl;
-    img.alt = `Foto micro ${i+1}`;
-    imgWrap.appendChild(img);
-
-    const desc = document.createElement("p");
-    desc.className = "muted";
-    desc.textContent = photos[i].desc ? `Descripción del alumno/a: ${photos[i].desc}` : "Sin descripción.";
-
-    const grid = document.createElement("div");
-    grid.className = "grid-3";
-
-    const creativity = ratingSelect("Creatividad", i, "creativity", existingByMicro[i]?.creativity);
-    const technique = ratingSelect("Calidad técnica", i, "technique", existingByMicro[i]?.technique);
-    const overall = ratingSelect("Valoración global", i, "overall", existingByMicro[i]?.overall);
-
-    grid.appendChild(creativity);
-    grid.appendChild(technique);
-    grid.appendChild(overall);
-
-    const commentLabel = document.createElement("label");
-    commentLabel.textContent = "Comentario (opcional)";
-    const comment = document.createElement("textarea");
-    comment.dataset.micro = String(i);
-    comment.dataset.field = "comment";
-    comment.value = existingByMicro[i]?.comment || "";
-
-    card.appendChild(h);
-    card.appendChild(imgWrap);
-    card.appendChild(desc);
-    card.appendChild(grid);
-    card.appendChild(commentLabel);
-    card.appendChild(comment);
-    wrap.appendChild(card);
-  }
-
-  const actions = document.createElement("div");
-  actions.className = "actions";
-  const btn = document.createElement("button");
-  btn.className = "primary";
-  btn.textContent = "Guardar valoración";
-  btn.onclick = () => saveExpertRating(studentId);
-  actions.appendChild(btn);
-
-  els.expertContent.appendChild(wrap);
-  els.expertContent.appendChild(actions);
-}
-
-function ratingSelect(labelText, microIdx, field, existingVal) {
-  const div = document.createElement("div");
-  const lab = document.createElement("label");
-  lab.textContent = labelText;
-
-  const sel = document.createElement("select");
-  sel.dataset.micro = String(microIdx);
-  sel.dataset.field = field;
-
-  const o0 = document.createElement("option");
-  o0.value = "";
-  o0.textContent = "—";
-  sel.appendChild(o0);
-
-  for (let v = 1; v <= 5; v++) {
-    const o = document.createElement("option");
-    o.value = String(v);
-    o.textContent = String(v);
-    sel.appendChild(o);
-  }
-
-  if (existingVal) sel.value = String(existingVal);
-
-  div.appendChild(lab);
-  div.appendChild(sel);
-  return div;
-}
-
-function saveExpertRating(studentId) {
-  hideMsg(els.expertMsg);
-  const container = els.expertContent;
-  const selects = Array.from(container.querySelectorAll("select[data-field]"));
-  const comments = Array.from(container.querySelectorAll("textarea[data-field='comment']"));
-
-  const byMicro = new Array(3).fill(null).map(() => ({creativity:null, technique:null, overall:null, comment:""}));
-
-  for (const s of selects) {
-    const i = Number.parseInt(s.dataset.micro, 10);
-    const field = s.dataset.field;
-    const v = s.value === "" ? null : clampInt(s.value, 1, 5);
-    byMicro[i][field] = v;
-  }
-
-  for (const c of comments) {
-    const i = Number.parseInt(c.dataset.micro, 10);
-    byMicro[i].comment = (c.value || "").trim();
-  }
-
-  // Validación: para guardar, exigimos que al menos "overall" esté informado en los 3.
-  const ok = byMicro.every(m => m.overall !== null);
-  if (!ok) {
-    showMsg(els.expertMsg, "Para guardar, completa al menos la valoración global (1–5) en los 3 microexperimentos.", "error");
-    return;
-  }
-
-  if (!DB.ratings[studentId]) DB.ratings[studentId] = {};
-  DB.ratings[studentId][SESSION.userId] = {
-    byMicro,
-    ratedAt: nowISO()
-  };
-  saveDB(DB);
-
-  showMsg(els.expertMsg, "Valoración guardada.", "info");
-}
-
-/* ========= Admin ========= */
-function setActiveTab(tab) {
-  for (const b of els.tabs) {
-    const active = b.dataset.tab === tab;
-    b.classList.toggle("active", active);
-  }
-  els.tabUsers.classList.toggle("hidden", tab !== "users");
-  els.tabResults.classList.toggle("hidden", tab !== "results");
-  els.tabExport.classList.toggle("hidden", tab !== "export");
-}
-
-function renderUsersTable() {
-  els.usersTable.innerHTML = "";
-
-  const table = document.createElement("table");
-  table.className = "table";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Rol</th>
-        <th>Activo</th>
-        <th>Progreso</th>
-        <th>Clave</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-
-  const tbody = table.querySelector("tbody");
-
-  const ids = Object.keys(DB.users).sort();
-  for (const id of ids) {
-    const u = DB.users[id];
-    const tr = document.createElement("tr");
-
-    const prog = u.role === "student" ? studentProgressBadge(id) : "—";
-
-    tr.innerHTML = `
-      <td><code>${id}</code></td>
-      <td>${roleLabel(u.role)}</td>
-      <td>${u.active ? '<span class="badge">Sí</span>' : '<span class="badge">No</span>'}</td>
-      <td>${prog}</td>
-      <td><input type="text" value="${escapeHtml(u.password)}" data-user="${id}" class="pass-input"></td>
-      <td class="actions-cell"></td>
-    `;
-
-    const actionsTd = tr.querySelector(".actions-cell");
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "ghost";
-    saveBtn.textContent = "Guardar clave";
-    saveBtn.onclick = () => {
-      const inp = tr.querySelector("input.pass-input");
-      DB.users[id].password = (inp.value || "").trim();
-      saveDB(DB);
-      showMsg(els.adminUserMsg, `Clave actualizada para ${id}.`);
-    };
-
-    const toggleBtn = document.createElement("button");
-    toggleBtn.className = "ghost";
-    toggleBtn.textContent = u.active ? "Desactivar" : "Activar";
-    toggleBtn.onclick = () => {
-      DB.users[id].active = !DB.users[id].active;
-      saveDB(DB);
-      renderUsersTable();
-      showMsg(els.adminUserMsg, `Estado actualizado para ${id}.`);
-    };
-
-    actionsTd.appendChild(saveBtn);
-    actionsTd.appendChild(toggleBtn);
-
-    if (u.role === "student") {
-      const resetBtn = document.createElement("button");
-      resetBtn.className = "ghost";
-      resetBtn.textContent = "Reiniciar progreso";
-      resetBtn.onclick = () => {
-        if (DB.submissions[id]) delete DB.submissions[id];
-        if (DB.ratings[id]) delete DB.ratings[id];
-        saveDB(DB);
-        renderUsersTable();
-        renderResultsView();
-        showMsg(els.adminUserMsg, `Progreso reiniciado para ${id}.`);
-      };
-      actionsTd.appendChild(resetBtn);
+    if (photosSnap.empty) {
+      photosList.textContent = "No hay fotografías almacenadas.";
+      return;
     }
 
-    tbody.appendChild(tr);
+    const ratingsByPhoto = {};
+    ratingsSnap.docs.forEach(docSnap => {
+      const r = docSnap.data();
+      const photoId = r.photoId;
+      if (!photoId) return;
+      if (!ratingsByPhoto[photoId]) ratingsByPhoto[photoId] = [];
+      ratingsByPhoto[photoId].push({
+        id: docSnap.id,
+        ...r
+      });
+    });
+
+    const items = globalConfig.ratingItems && globalConfig.ratingItems.length
+      ? globalConfig.ratingItems
+      : DEFAULT_RATING_ITEMS;
+
+    photosList.innerHTML = "";
+    photosSnap.docs.forEach(docSnap => {
+      const p = docSnap.data();
+      const photoId = docSnap.id;
+
+      const card = document.createElement("div");
+      card.className = "photo-card";
+
+      const img = document.createElement("img");
+      img.src = p.dataUrl;
+      img.alt = "Fotografía " + photoId;
+
+      const ai1 = p.aiScore != null ? `AI_PUNTF: ${p.aiScore}` : "";
+      const ai2 = p.localAdvanced?.localAdvancedScore != null
+        ? `IA_local: ${p.localAdvanced.localAdvancedScore}`
+        : "";
+      const ai3 = p.deepAI?.deepScore != null
+        ? `IA_profunda: ${p.deepAI.deepScore}`
+        : "";
+
+      const meta = document.createElement("p");
+      meta.innerHTML = `
+        <strong>ID:</strong> ${photoId}<br>
+        Edad: ${p.age ?? ""} | Sexo: ${p.gender || ""}<br>
+        Estudios: ${p.studies || ""} | Bachillerato: ${p.bachType || ""}<br>
+        Vocación: ${p.vocation || ""}<br>
+        Centro: ${p.center || ""}<br>
+        ${ai1} ${ai2} ${ai3}
+      `;
+
+      card.appendChild(img);
+      card.appendChild(meta);
+
+      const rList = ratingsByPhoto[photoId] || [];
+      const ratingsInfo = document.createElement("div");
+      ratingsInfo.className = "photo-ratings";
+
+      if (rList.length === 0) {
+        ratingsInfo.textContent = "Sin valoraciones aún.";
+      } else {
+        const avg = rList.reduce(
+          (sum, r) => sum + (typeof r.puntf === "number" ? r.puntf : 0),
+          0
+        ) / rList.length;
+
+        const resumen = document.createElement("p");
+        resumen.textContent = `Valoraciones: ${rList.length} | PUNTF media: ${avg.toFixed(2)}`;
+        ratingsInfo.appendChild(resumen);
+
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+
+        let headerHtml = "<tr><th>Experto/a</th>";
+        items.forEach(item => {
+          headerHtml += `<th>${item.label}</th>`;
+        });
+        headerHtml += "<th>PUNTF</th></tr>";
+        thead.innerHTML = headerHtml;
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        rList.forEach(r => {
+          const tr = document.createElement("tr");
+
+          const ratingsMap = r.ratings || {};
+          let rowHtml = `<td>${r.expertId || ""}</td>`;
+          items.forEach((item, idx) => {
+            let val = ratingsMap[item.id];
+            // Compatibilidad con datos antiguos tipo sub1, sub2...
+            if (val === undefined && r[`sub${idx + 1}`] !== undefined) {
+              val = r[`sub${idx + 1}`];
+            }
+            rowHtml += `<td>${val ?? ""}</td>`;
+          });
+          rowHtml += `<td>${typeof r.puntf === "number" ? r.puntf.toFixed(2) : ""}</td>`;
+
+          tr.innerHTML = rowHtml;
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        ratingsInfo.appendChild(table);
+      }
+
+      card.appendChild(ratingsInfo);
+      photosList.appendChild(card);
+    });
+  } catch (err) {
+    console.error(err);
+    photosList.textContent = "Error cargando fotografías y valoraciones.";
   }
-
-  els.usersTable.appendChild(table);
 }
 
-function studentProgressBadge(studentId) {
-  const sub = DB.submissions[studentId] || {};
-  const cbqdDone = !!(sub.cbqd && sub.cbqd.answers && sub.cbqd.answers.length === CBQD_ITEMS.length);
-  const microDone = !!(sub.micro && sub.micro.photos && sub.micro.photos.length === 3 && sub.micro.photos.every(p => !!p.dataUrl));
-
-  const parts = [];
-  parts.push(cbqdDone ? "CBQD ✅" : "CBQD ⏳");
-  parts.push(microDone ? "Micro ✅" : "Micro ⏳");
-  const done = cbqdDone && microDone;
-
-  return `<span class="badge">${parts.join(" · ")}</span>${done ? ' <span class="badge">Completado</span>' : ''}`;
+if (loadPhotosButton) {
+  loadPhotosButton.addEventListener("click", loadAllPhotosWithRatings);
 }
 
-function roleLabel(r) {
-  if (r === "student") return "Alumno/a";
-  if (r === "expert") return "Experto/a";
-  return "Administrador/a";
-}
+// Exportar CSV dinámico con ítems configurables + IA ligera + IA avanzada + IA profunda
+document.getElementById("export-csv-button").addEventListener("click", async () => {
+  try {
+    const photosSnap = await getDocs(photosCol);
+    const ratingsSnap = await getDocs(ratingsCol);
 
-function escapeHtml(s) {
-  return (s || "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function createUser() {
-  hideMsg(els.adminUserMsg);
-
-  const role = els.newRole.value;
-  const id = safeId(els.newId.value);
-  const pass = (els.newPass.value || "").trim();
-
-  if (!id || !pass) {
-    showMsg(els.adminUserMsg, "Falta ID o clave.", "error");
-    return;
-  }
-  if (DB.users[id]) {
-    showMsg(els.adminUserMsg, "Ese ID ya existe.", "error");
-    return;
-  }
-
-  DB.users[id] = { role, password: pass, active: true, createdAt: nowISO() };
-  saveDB(DB);
-
-  els.newId.value = "";
-  els.newPass.value = "";
-  renderUsersTable();
-  showMsg(els.adminUserMsg, `Usuario creado: ${id} (${roleLabel(role)}).`);
-}
-
-function renderResultsView() {
-  els.resultsView.innerHTML = "";
-
-  const students = Object.entries(DB.users)
-    .filter(([id,u]) => u.role === "student")
-    .map(([id]) => id)
-    .sort();
-
-  if (students.length === 0) {
-    els.resultsView.textContent = "No hay alumnado registrado.";
-    return;
-  }
-
-  const table = document.createElement("table");
-  table.className = "table";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Alumno/a</th>
-        <th>CBQD</th>
-        <th>Micro (fotos)</th>
-        <th>Nº evaluadores</th>
-        <th>Media global (1–5)</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-
-  const tb = table.querySelector("tbody");
-
-  for (const sid of students) {
-    const sub = DB.submissions[sid] || {};
-    const cbqdDone = !!(sub.cbqd && sub.cbqd.answers && sub.cbqd.answers.length === CBQD_ITEMS.length);
-    const microDone = !!(sub.micro && sub.micro.photos && sub.micro.photos.length === 3 && sub.micro.photos.every(p => !!p.dataUrl));
-
-    const rat = DB.ratings[sid] || {};
-    const nEval = Object.keys(rat).length;
-    const avg = computeOverallAverage(rat);
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><code>${sid}</code></td>
-      <td>${cbqdDone ? "✅" : "—"}</td>
-      <td>${microDone ? "✅" : "—"}</td>
-      <td>${nEval}</td>
-      <td>${avg !== null ? avg.toFixed(2) : "—"}</td>
-    `;
-    tb.appendChild(tr);
-  }
-
-  els.resultsView.appendChild(table);
-}
-
-function computeOverallAverage(ratingsForStudent) {
-  const vals = [];
-  for (const r of Object.values(ratingsForStudent || {})) {
-    for (const m of (r.byMicro || [])) {
-      if (m && typeof m.overall === "number") vals.push(m.overall);
+    if (photosSnap.empty) {
+      alert("No hay fotografías almacenadas.");
+      return;
     }
-  }
-  if (vals.length === 0) return null;
-  const sum = vals.reduce((a,b)=>a+b,0);
-  return sum / vals.length;
-}
 
-function exportJSON() {
-  hideMsg(els.exportMsg);
-  const payload = {
-    exportedAt: nowISO(),
-    cbqdItems: CBQD_ITEMS,
-    users: DB.users,
-    submissions: DB.submissions,
-    ratings: DB.ratings
-  };
-  downloadText("cbqd_micro_export.json", JSON.stringify(payload, null, 2), "application/json");
-  showMsg(els.exportMsg, "JSON descargado.", "info");
-}
+    const photos = {};
+    photosSnap.docs.forEach(docSnap => {
+      photos[docSnap.id] = docSnap.data();
+    });
 
-function exportCSV() {
-  hideMsg(els.exportMsg);
+    const items = globalConfig.ratingItems && globalConfig.ratingItems.length
+      ? globalConfig.ratingItems
+      : DEFAULT_RATING_ITEMS;
 
-  // CSV orientado a análisis: 1 fila por alumno/a
-  const header = [
-    "student_id",
-    "cbqd_submitted_at",
-    ...CBQD_ITEMS.map((it, i) => `cbqd_{it.n}`),
-    "micro_submitted_at",
-    "micro1_present","micro2_present","micro3_present",
-    "n_experts",
-    "overall_mean"
-  ];
-
-  const rows = [header];
-
-  const students = Object.entries(DB.users)
-    .filter(([id,u]) => u.role === "student")
-    .map(([id]) => id)
-    .sort();
-
-  for (const sid of students) {
-    const sub = DB.submissions[sid] || {};
-    const cbqdAt = sub.cbqd?.submittedAt || "";
-    const ans = sub.cbqd?.answers || [];
-    const microAt = sub.micro?.submittedAt || "";
-    const photos = sub.micro?.photos || [];
-    const present = [0,1,2].map(i => (photos[i] && photos[i].dataUrl) ? 1 : 0);
-
-    const rat = DB.ratings[sid] || {};
-    const nEval = Object.keys(rat).length;
-    const avg = computeOverallAverage(rat);
-
-    const row = [
-      sid,
-      cbqdAt,
-      ...CBQD_ITEMS.map((it, idx) => (ans[idx] ?? "")),
-      microAt,
-      ...present,
-      nEval,
-      avg !== null ? avg.toFixed(4) : ""
+    const header = [
+      "fotoId",
+      "sexo",
+      "edad",
+      "estudios",
+      "tipoBach",
+      "vocacion",
+      "estudios_padre",
+      "estudios_madre",
+      "repite_curso",
+      "suspensos",
+      "num_ordenadores_casa",
+      "ordenador_habitacion",
+      "frecuencia_uso_ordenador",
+      "horas_diarias_ordenador",
+      "centro_educativo",
+      "ai_brightness",
+      "ai_contrast",
+      "ai_colorfulness",
+      "ai_edgeDensity",
+      "ai_score",
+      "local_thirds",
+      "local_horizon",
+      "local_golden",
+      "local_salience",
+      "local_score",
+      "deep_score",
+      "deep_explanation",
+      "expertoId"
     ];
 
-    rows.push(row);
+    items.forEach(item => {
+      header.push(item.label);
+    });
+
+    header.push("puntf");
+
+    const rows = [];
+    rows.push(header);
+
+    const ratingsArr = ratingsSnap.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    }));
+
+    if (ratingsArr.length === 0) {
+      // Sin valoraciones: una fila por foto
+      Object.entries(photos).forEach(([id, p]) => {
+        const f = p.aiFeatures || {};
+        const adv = p.localAdvanced || {};
+        const deep = p.deepAI || {};
+
+        const base = [
+          id,
+          p.gender || "",
+          p.age ?? "",
+          p.studies || "",
+          p.bachType || "",
+          p.vocation || "",
+          p.studiesFather || "",
+          p.studiesMother || "",
+          p.rep || "",
+          p.fail || "",
+          p.pcsHome ?? "",
+          p.pcRoom || "",
+          p.pcFrequency || "",
+          p.pcHours ?? "",
+          p.center || "",
+          f.brightness ?? "",
+          f.contrast ?? "",
+          f.colorfulness ?? "",
+          f.edgeDensity ?? "",
+          p.aiScore ?? "",
+          adv.thirdsScore ?? "",
+          adv.horizonScore ?? "",
+          adv.goldenScore ?? "",
+          adv.salienceScore ?? "",
+          adv.localAdvancedScore ?? "",
+          deep.deepScore ?? "",
+          deep.deepExplanation ?? "",
+          ""
+        ];
+
+        items.forEach(() => {
+          base.push("");
+        });
+
+        base.push("");
+        rows.push(base);
+      });
+    } else {
+      // Con valoraciones: una fila por valoración
+      ratingsArr.forEach(r => {
+        const p = photos[r.photoId];
+        if (!p) return;
+
+        const f = p.aiFeatures || {};
+        const adv = p.localAdvanced || {};
+        const deep = p.deepAI || {};
+
+        const base = [
+          r.photoId,
+          p.gender || "",
+          p.age ?? "",
+          p.studies || "",
+          p.bachType || "",
+          p.vocation || "",
+          p.studiesFather || "",
+          p.studiesMother || "",
+          p.rep || "",
+          p.fail || "",
+          p.pcsHome ?? "",
+          p.pcRoom || "",
+          p.pcFrequency || "",
+          p.pcHours ?? "",
+          p.center || "",
+          f.brightness ?? "",
+          f.contrast ?? "",
+          f.colorfulness ?? "",
+          f.edgeDensity ?? "",
+          p.aiScore ?? "",
+          adv.thirdsScore ?? "",
+          adv.horizonScore ?? "",
+          adv.goldenScore ?? "",
+          adv.salienceScore ?? "",
+          adv.localAdvancedScore ?? "",
+          deep.deepScore ?? "",
+          deep.deepExplanation ?? "",
+          r.expertId || ""
+        ];
+
+        const ratingsMap = r.ratings || {};
+        items.forEach((item, idx) => {
+          let val = ratingsMap[item.id];
+          if (val === undefined && r[`sub${idx + 1}`] !== undefined) {
+            val = r[`sub${idx + 1}`];
+          }
+          base.push(val ?? "");
+        });
+
+        base.push(typeof r.puntf === "number" ? r.puntf.toFixed(2) : "");
+        rows.push(base);
+      });
+    }
+
+    const csvContent = rows.map(row =>
+      row.map(value => {
+        const str = String(value ?? "");
+        if (str.includes(";") || str.includes("\"")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(";")
+    ).join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const now = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `creatividad_digital_${now}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    alert("CSV generado y descargado.");
+  } catch (err) {
+    console.error(err);
+    alert("Ha ocurrido un error al generar el CSV.");
   }
-
-  const csv = rows.map(r => r.map(v => csvCell(v)).join(",")).join("\n");
-  downloadText("cbqd_micro_export.csv", csv, "text/csv;charset=utf-8");
-  showMsg(els.exportMsg, "CSV descargado.", "info");
-}
-
-function csvCell(v) {
-  const s = String(v ?? "");
-  if (s.includes('"') || s.includes(",") || s.includes("\n")) {
-    return '"' + s.replaceAll('"','""') + '"';
-  }
-  return s;
-}
-
-/* ========= Eventos ========= */
-els.loginBtn.addEventListener("click", login);
-els.password.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") login();
 });
 
-els.logoutStudent1.addEventListener("click", logout);
-els.logoutStudent2.addEventListener("click", logout);
-els.logoutExpert.addEventListener("click", logout);
-els.logoutAdmin.addEventListener("click", logout);
-
-els.cbqdSubmit.addEventListener("click", submitCBQD);
-els.microSubmit.addEventListener("click", submitMicro);
-
-els.expertRefresh.addEventListener("click", () => {
-  DB = loadDB() || DB;
-  renderExpertTargets();
-  showMsg(els.expertMsg, "Lista actualizada.", "info");
-});
-
-els.tabs.forEach(b => b.addEventListener("click", () => {
-  const tab = b.dataset.tab;
-  setActiveTab(tab);
-  if (tab === "users") renderUsersTable();
-  if (tab === "results") renderResultsView();
-}));
-
-els.createUser.addEventListener("click", createUser);
-
-els.exportJson.addEventListener("click", exportJSON);
-els.exportCsv.addEventListener("click", exportCSV);
-
-// Init
-goTo(els.loginSection);
