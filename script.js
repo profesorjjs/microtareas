@@ -1329,8 +1329,10 @@ function resetUploaderState({ newParticipant = true } = {}) {
   scoreIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
 
   // Cache de IA
-  if (typeof microtaskAiCache !== "undefined") {
-    microtaskAiCache = {};
+  if (typeof microtaskAiCache !== "undefined" && microtaskAiCache) {
+    microtaskAiCache.MT1_AUTOEXP = null;
+    microtaskAiCache.MT2_ESCOLAR = null;
+    microtaskAiCache.MT3_TRANSFORM = null;
   }
 
   // Vuelve al paso 1 del wizard
@@ -1475,7 +1477,7 @@ task2TextArea?.addEventListener("input", () => {
 // ==================================================
 // Cache en memoria para no recalcular continuamente.
 // Se recalcula de nuevo en el envío final por robustez.
-const microtaskAiCache = {
+let microtaskAiCache = {
   MT1_AUTOEXP: null,
   MT2_ESCOLAR: null,
   MT3_TRANSFORM: null
