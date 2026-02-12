@@ -185,7 +185,26 @@
 
       <section class="wizard-step hidden" data-step="2">
         <h3>2) Cuestionario CBQD</h3>
-        <p class="note">Marca la frecuencia con la que realizas estos comportamientos digitales (1–5).</p>
+        <p class="cbqd-intro">
+          A continuación, encontrarás algunas preguntas referidas a tu creatividad digital. Lee atentamente cada una de las siguientes preguntas y rodea con un círculo la respuesta que más se aproxima a tu situación.
+        </p>
+
+        <table class="cbqd-legend-table" aria-label="Escala de respuesta CBQD">
+          <tr>
+            <th scope="col">1</th>
+            <th scope="col">2</th>
+            <th scope="col">3</th>
+            <th scope="col">4</th>
+            <th scope="col">5</th>
+          </tr>
+          <tr>
+            <td>Nunca</td>
+            <td>Una vez</td>
+            <td>Dos veces</td>
+            <td>Tres veces</td>
+            <td>4 o más veces</td>
+          </tr>
+        </table>
 
         <div id="cbqd-disabled" class="message note hidden">
           El cuestionario CBQD está desactivado en este momento. Puedes continuar directamente con las microtareas.
@@ -360,10 +379,10 @@
         <h2>Panel de investigación</h2>
         <button type="button" class="back-button">Volver al inicio</button>
       </div>
-      <p>Desde aquí puedes exportar los datos de fotografías y valoraciones en formato CSV para analizarlos estadísticamente.</p>
+      <p>Desde aquí puedes exportar los datos (CBQD + microtareas con fotografías + valoraciones) en formato CSV para analizarlos estadísticamente.</p>
 
       <button id="export-csv-button">Descargar CSV</button>
-      <p class="note">El archivo incluirá una fila por combinación fotografía × experto/a, con las valoraciones y la PUNTF.</p>
+      <p class="note">El archivo incluirá una fila por combinación fotografía × experto/a (formato “largo”), incorporando también los datos del CBQD y del alumnado vinculados a cada fotografía.</p>
 
       <h3>Opciones de recogida de datos</h3>
       <div class="form-group">

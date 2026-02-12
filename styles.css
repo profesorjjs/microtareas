@@ -377,6 +377,31 @@ button.secondary:hover {
   text-align: right;
 }
 
+.cbqd-intro {
+  margin: 0.25rem 0 0.75rem;
+  line-height: 1.45;
+  color: #333;
+}
+
+.cbqd-legend-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 0.9rem;
+  font-size: 0.95rem;
+}
+
+.cbqd-legend-table th,
+.cbqd-legend-table td {
+  border: 1px solid #e0e0e0;
+  padding: 0.4rem 0.35rem;
+  text-align: center;
+}
+
+.cbqd-legend-table th {
+  background: #f7f7ff;
+  font-weight: 700;
+}
+
 .cbqd-item {
   padding: 0.75rem;
   border: 1px solid #e0e0e0;
