@@ -2,48 +2,204 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Creatividad Digital</title>
+  <title>Plataforma CBQD + Microexperimentos</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header class="header">
   <h1>Creatividad digital</h1>
+  <p class="subtitle">CBQD + 3 microexperimentos con fotografías · Evaluación experta · Panel de administración</p>
 </header>
+
 <main class="container">
-<section id="login-section" class="card">
-  <h2>Acceso</h2>
-  <label>Rol</label>
-  <select id="role">
-    <option value="uploader">Alumnado</option>
-    <option value="expert">Experto/a</option>
-    <option value="admin">Investigación</option>
-  </select>
-  <label>Clave</label>
-  <input type="password" id="password">
-  <button id="login-button">Entrar</button>
-  <p id="login-message" class="message"></p>
-</section>
-<section id="upload-section" class="card hidden">
-  <h2>Cuestionario de creatividad digital</h2>
-  <p class="cbqd-intro">
-    A continuación, encontrarás algunas preguntas referidas a tu creatividad digital.
-    Lee atentamente cada una de las siguientes preguntas y rodea con un círculo la
-    respuesta que más se aproxima a tu situación.
-  </p>
-  <div class="cbqd-scale-legend">
-    <span>1<br>Nunca</span>
-    <span>2<br>Una vez</span>
-    <span>3<br>Dos veces</span>
-    <span>4<br>Tres veces</span>
-    <span>5<br>4 o más veces</span>
-  </div>
-  <form id="cbqd-form">
-    <div id="cbqd-items"></div>
-    <button type="submit">Continuar</button>
-  </form>
-</section>
+
+  <!-- LOGIN -->
+  <section id="login-section" class="card">
+    <h2>Acceso</h2>
+
+    <div class="grid-2">
+      <div>
+        <label for="role">Perfil</label>
+        <select id="role">
+          <option value="student">Alumno/a</option>
+          <option value="expert">Experto/a</option>
+          <option value="admin">Administrador/a</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="userId">ID (código)</label>
+        <input id="userId" type="text" placeholder="Ej.: A001" autocomplete="username">
+      </div>
+
+      <div>
+        <label for="password">Clave</label>
+        <input id="password" type="password" placeholder="Introduce tu clave" autocomplete="current-password">
+      </div>
+
+      <div class="actions align-end">
+        <button id="login-btn" class="primary">Entrar</button>
+      </div>
+    </div>
+
+    <div id="login-msg" class="message" aria-live="polite"></div>
+
+    <details class="hint">
+      <summary>Credenciales de demostración</summary>
+      <ul>
+        <li><strong>Alumno/a:</strong> ID <code>A001</code>, clave <code>alumno</code></li>
+        <li><strong>Experto/a:</strong> ID <code>E001</code>, clave <code>experto</code></li>
+        <li><strong>Admin:</strong> ID <code>ADMIN</code>, clave <code>admin</code></li>
+      </ul>
+      <p class="muted">Desde administración puedes crear usuarios y cambiar claves.</p>
+    </details>
+  </section>
+
+  <!-- STUDENT: CBQD -->
+  <section id="student-cbqd-section" class="card hidden">
+    <div class="bar">
+      <h2>Alumno/a · Test CBQD</h2>
+      <button class="ghost" id="logout-student-1">Salir</button>
+    </div>
+
+    <p class="muted">Primero completa el CBQD. Después pasarás automáticamente a los microexperimentos.</p>
+
+    <div id="cbqd-form"></div>
+
+    <div class="actions">
+      <button id="cbqd-submit" class="primary">Guardar CBQD y continuar</button>
+    </div>
+    <div id="cbqd-msg" class="message" aria-live="polite"></div>
+  </section>
+
+  <!-- STUDENT: MICROEXPERIMENTS -->
+  <section id="student-micro-section" class="card hidden">
+    <div class="bar">
+      <h2>Alumno/a · Microexperimentos (fotografías)</h2>
+      <button class="ghost" id="logout-student-2">Salir</button>
+    </div>
+
+    <p class="muted">
+      Sube <strong>una fotografía por microexperimento</strong>. Cuando completes los tres, quedará registrado tu envío.
+      Puedes añadir una breve descripción si te apetece.
+    </p>
+
+    <div id="micro-steps" class="micro"></div>
+
+    <div class="actions">
+      <button id="micro-submit" class="primary">Finalizar y enviar</button>
+    </div>
+    <div id="micro-msg" class="message" aria-live="polite"></div>
+  </section>
+
+  <!-- EXPERT -->
+  <section id="expert-section" class="card hidden">
+    <div class="bar">
+      <h2>Experto/a · Valoración de fotografías</h2>
+      <button class="ghost" id="logout-expert">Salir</button>
+    </div>
+
+    <p class="muted">
+      En modo experto/a solo se valoran las fotografías. No se muestra el CBQD.
+      Selecciona un envío y puntúa cada microexperimento.
+    </p>
+
+    <div class="grid-2">
+      <div>
+        <label for="expert-target">Envíos disponibles</label>
+        <select id="expert-target"></select>
+      </div>
+      <div class="actions align-end">
+        <button id="expert-refresh" class="ghost">Actualizar</button>
+      </div>
+    </div>
+
+    <div id="expert-content"></div>
+    <div id="expert-msg" class="message" aria-live="polite"></div>
+  </section>
+
+  <!-- ADMIN -->
+  <section id="admin-section" class="card hidden">
+    <div class="bar">
+      <h2>Administrador/a · Panel</h2>
+      <button class="ghost" id="logout-admin">Salir</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="users">Usuarios</button>
+      <button class="tab" data-tab="results">Resultados</button>
+      <button class="tab" data-tab="export">Exportación</button>
+    </div>
+
+    <div id="tab-users" class="tabpane">
+      <h3>Gestión de usuarios</h3>
+      <p class="muted">Crea alumnos/as y expertos/as, cambia claves y, si hace falta, reinicia progreso.</p>
+
+      <div class="card-inner">
+        <h4>Crear usuario</h4>
+        <div class="grid-3">
+          <div>
+            <label for="new-role">Rol</label>
+            <select id="new-role">
+              <option value="student">Alumno/a</option>
+              <option value="expert">Experto/a</option>
+              <option value="admin">Administrador/a</option>
+            </select>
+          </div>
+          <div>
+            <label for="new-id">ID</label>
+            <input id="new-id" type="text" placeholder="Ej.: A014">
+          </div>
+          <div>
+            <label for="new-pass">Clave</label>
+            <input id="new-pass" type="text" placeholder="Ej.: q7K2p9">
+          </div>
+        </div>
+        <div class="actions">
+          <button id="create-user" class="primary">Crear</button>
+        </div>
+        <div id="admin-user-msg" class="message" aria-live="polite"></div>
+      </div>
+
+      <div class="card-inner">
+        <h4>Usuarios existentes</h4>
+        <div id="users-table"></div>
+      </div>
+    </div>
+
+    <div id="tab-results" class="tabpane hidden">
+      <h3>Resultados</h3>
+      <p class="muted">Vista consolidada para inspección rápida (CBQD + micro + valoraciones).</p>
+      <div id="results-view"></div>
+    </div>
+
+    <div id="tab-export" class="tabpane hidden">
+      <h3>Exportación</h3>
+      <p class="muted">Exporta en JSON (incluye imágenes en base64) o en CSV (sin imágenes, pero con métricas y estados).</p>
+      <div class="actions">
+        <button id="export-json" class="primary">Descargar JSON</button>
+        <button id="export-csv" class="ghost">Descargar CSV</button>
+      </div>
+      <div id="export-msg" class="message" aria-live="polite"></div>
+
+      <details class="hint">
+        <summary>Nota sobre investigación</summary>
+        <p class="muted">
+          En esta demo los datos se guardan en <code>localStorage</code> (en el navegador). Para un estudio real,
+          conviene servidor, control de versiones del instrumento y un plan de anonimización/pseudonimización.
+        </p>
+      </details>
+    </div>
+
+  </section>
+
 </main>
-<script type="module" src="script.js"></script>
+
+<footer class="footer">
+  <p class="muted">© Plataforma experimental · Datos en localStorage</p>
+</footer>
+
+<script src="script.js"></script>
 </body>
 </html>
