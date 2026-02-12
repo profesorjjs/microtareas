@@ -1409,6 +1409,7 @@ function renderCbqd() {
   items.forEach((it, idx) => {
     const box = document.createElement("div");
     box.className = "cbqd-item";
+    box.dataset.cbqdId = String(it.id);
 
     const p = document.createElement("p");
     p.innerHTML = `<strong>${idx + 1}.</strong> ${it.text}`;
@@ -1424,7 +1425,11 @@ function renderCbqd() {
       input.name = `cbqd_${it.id}`;
       input.value = String(v);
       input.required = true;
-      input.addEventListener("change", updateCbqdScores);
+      input.addEventListener("change", () => {
+        // Si el alumno responde, quitamos cualquier marca de "pendiente".
+        box.classList.remove("cbqd-missing");
+        updateCbqdScores();
+      });
 
       lab.appendChild(input);
       lab.appendChild(document.createTextNode(String(v)));
@@ -1436,6 +1441,77 @@ function renderCbqd() {
   });
 
   updateCbqdScores();
+}
+
+// Inyecta un estilo mínimo para indicar ítems CBQD pendientes sin tocar tu CSS.
+function ensureCbqdMissingStyle() {
+  if (document.getElementById("cbqd-missing-style")) return;
+  const style = document.createElement("style");
+  style.id = "cbqd-missing-style";
+  style.textContent = `
+    .cbqd-item.cbqd-missing{outline:2px solid #b00020; outline-offset:6px; border-radius:10px;}
+    .cbqd-item.cbqd-missing p{color:#b00020;}
+  `;
+  document.head.appendChild(style);
+}
+
+function showWizardMessage(text) {
+  const msg = document.getElementById("wizard-message");
+  if (!msg) {
+    alert(text);
+    return;
+  }
+  msg.textContent = text;
+  msg.className = "message error";
+}
+
+function clearWizardMessage() {
+  const msg = document.getElementById("wizard-message");
+  if (!msg) return;
+  msg.textContent = "";
+  msg.className = "message";
+}
+
+// Valida que el CBQD esté completo (si está activado). Si falta algo, avisa, marca y centra el primer ítem pendiente.
+function validateCbqdComplete({ focusFirstMissing = true } = {}) {
+  const items = globalConfig.cbqdItems || [];
+  const cbqdEnabledNow = !!globalConfig.cbqdEnabled && items.length > 0;
+  if (!cbqdEnabledNow) return true;
+
+  const responses = getCbqdResponses();
+  const missingIds = responses.filter(r => r.value === null).map(r => String(r.id));
+
+  // Limpia marcas previas
+  document.querySelectorAll(".cbqd-item.cbqd-missing").forEach(el => el.classList.remove("cbqd-missing"));
+
+  if (!missingIds.length) return true;
+
+  ensureCbqdMissingStyle();
+
+  // Marca los ítems pendientes
+  missingIds.forEach(id => {
+    const el = cbqdItemsHost?.querySelector(`.cbqd-item[data-cbqd-id="${CSS.escape(id)}"]`);
+    if (el) el.classList.add("cbqd-missing");
+  });
+
+  showWizardMessage(`Te falta por responder ${missingIds.length} ítem(s) del CBQD. Complétalos para continuar.`);
+
+  // Lleva al alumno al paso del CBQD si no está ya
+  const currentStep = wizardOrder[wizardIdx];
+  if (currentStep !== 2) {
+    // Busca el índice del paso 2 en el orden actual
+    const targetIdx = wizardOrder.indexOf(2);
+    if (targetIdx >= 0) showWizardStepByIndex(targetIdx);
+  }
+
+  if (focusFirstMissing) {
+    const firstId = missingIds[0];
+    const firstEl = cbqdItemsHost?.querySelector(`.cbqd-item[data-cbqd-id="${CSS.escape(firstId)}"]`);
+    if (firstEl && typeof firstEl.scrollIntoView === "function") {
+      firstEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+  return false;
 }
 
 function getCbqdResponses() {
@@ -1451,6 +1527,15 @@ function getCbqdResponses() {
 }
 
 function updateCbqdScores() {
+  // Si el alumno va completando, limpia el aviso general cuando ya no falte nada.
+  const items = globalConfig.cbqdItems || [];
+  if (!!globalConfig.cbqdEnabled && items.length) {
+    const stillMissing = getCbqdResponses().some(r => r.value === null);
+    if (!stillMissing) {
+      clearWizardMessage();
+      document.querySelectorAll(".cbqd-item.cbqd-missing").forEach(el => el.classList.remove("cbqd-missing"));
+    }
+  }
   const totalEl = document.getElementById("cbqd-total");
   const subEl = document.getElementById("cbqd-subscales");
 
@@ -1635,14 +1720,8 @@ wizardBack4?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1
 wizardBack5?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
 
 wizardNext2?.addEventListener("click", () => {
-  // si CBQD está activado y tiene ítems, exige completarlo
-  if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
-    const missing = getCbqdResponses().some(r => r.value === null);
-    if (missing) {
-      alert("Por favor, completa todos los ítems del CBQD.");
-      return;
-    }
-  }
+  // Si CBQD está activo, no se puede avanzar hasta completarlo.
+  if (!validateCbqdComplete({ focusFirstMissing: true })) return;
   showWizardStepByIndex(wizardIdx + 1);
 });
 
@@ -1678,13 +1757,8 @@ submitAllBtn?.addEventListener("click", async () => {
     if (t3 && !t3.reportValidity()) return;
 
     // CBQD (si procede)
-    if (globalConfig.cbqdEnabled && (globalConfig.cbqdItems || []).length) {
-      const missing = getCbqdResponses().some(r => r.value === null);
-      if (missing) {
-        alert("Por favor, completa todos los ítems del CBQD.");
-        return;
-      }
-    }
+    // Si CBQD está activo, bloquea el envío hasta completarlo.
+    if (!validateCbqdComplete({ focusFirstMissing: true })) return;
 
     const participantId = ensureParticipantId();
     const sessionId = newSessionId();
@@ -2503,7 +2577,9 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       // CBQD
       "cbqd_on",
       "cbqd_ver",
-      "cbqd_total"
+      "cbqd_total",
+      "cbqd_answered",
+      "cbqd_missing"
     ];
 
     cbqdDomainList.forEach(dom => header.push(`cbqd_dom_${dom}`));
@@ -2565,35 +2641,42 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         // Compatibilidad: algunos datos guardan scores en c.scores
         let total = null;
         let subscales = {};
+        let answered = 0;
+        let missing = 0;
         let responses = c.responses || [];
         if (c.scores && typeof c.scores === "object") {
           total = c.scores.total ?? null;
           subscales = c.scores.subscales || {};
+          answered = c.scores.answered ?? 0;
+          missing = c.scores.missing ?? 0;
         } else {
           // si no hay scores, recomputamos
           const sc = computeCbqdScores(responses);
           total = sc.total;
           subscales = sc.subscales;
+          answered = sc.answered;
+          missing = sc.missing;
         }
 
         const map = {};
         responses.forEach(r => {
           if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
         });
-        return { enabled, version, total, subscales, map };
+        return { enabled, version, total, subscales, answered, missing, map };
       }
 
       // Fallback (fotos antiguas)
-const enabled = !!p?.cbqdEnabled;
-const version = p?.cbqdVersion || "";
-const total = (p?.cbqdTotal ?? "");
-const subscales = p?.cbqdSubscales || {};
-const map = {};
-const resp = Array.isArray(p?.cbqdResponses) ? p.cbqdResponses : [];
-resp.forEach(r => {
-  if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
-});
-return { enabled, version, total, subscales, map };
+      const enabled = !!p?.cbqdEnabled;
+      const version = p?.cbqdVersion || "";
+      const total = (p?.cbqdTotal ?? "");
+      const subscales = p?.cbqdSubscales || {};
+      const map = {};
+      const resp = Array.isArray(p?.cbqdResponses) ? p.cbqdResponses : [];
+      resp.forEach(r => {
+        if (r?.id) map[r.id] = Number.isFinite(r.value) ? r.value : "";
+      });
+      const sc = resp.length ? computeCbqdScores(resp) : { answered: 0, missing: 0 };
+      return { enabled, version, total, subscales, answered: sc.answered, missing: sc.missing, map };
     }
 
     function photoRowBase(photoId, p, s, rOrNull) {
@@ -2629,7 +2712,9 @@ return { enabled, version, total, subscales, map };
 
         cbqd.enabled ? "1" : "0",
         cbqd.version,
-        cbqd.total ?? ""
+        cbqd.total ?? "",
+        cbqd.answered ?? "",
+        cbqd.missing ?? ""
       ];
 
       // Subescalas fijas por dominio
