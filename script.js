@@ -90,6 +90,20 @@ let globalConfig = {
   cbqdItems: DEFAULT_CBQD_ITEMS
 };
 
+// Estado de carga de configuración (evita que el alumnado entre antes de tener CBQD/contraseñas/ajustes actualizados)
+let _configLoaded = false;
+let _configLoadPromise = null;
+
+async function ensureConfigLoaded() {
+  if (_configLoaded) return;
+  if (_configLoadPromise) return _configLoadPromise;
+  _configLoadPromise = (async () => {
+    await loadGlobalConfig();
+    _configLoaded = true;
+  })();
+  return _configLoadPromise;
+}
+
 // ----- GESTIÓN DE SECCIONES -----
 const loginSection = document.getElementById("login-section");
 const uploadSection = document.getElementById("upload-section");
@@ -437,8 +451,8 @@ async function loadGlobalConfig() {
   buildRatingControls();
 }
 
-// Cargar configuración al inicio
-loadGlobalConfig();
+// Cargar configuración al inicio (y garantizar que esté lista antes de usar contraseñas/CBQD)
+ensureConfigLoaded();
 
 // Listener para mostrar/ocultar modalidad de Bachillerato según nivel
 if (studiesSelect && bachWrapper) {
@@ -1102,7 +1116,8 @@ function showSection(sectionId) {
 }
 
 // ----- LOGIN / ACCESO POR ROL -----
-document.getElementById("login-button").addEventListener("click", () => {
+document.getElementById("login-button").addEventListener("click", async () => {
+  await ensureConfigLoaded();
   const role = document.getElementById("role-select").value;
   const password = document.getElementById("access-password").value.trim();
 
@@ -1651,6 +1666,7 @@ submitAllBtn?.addEventListener("click", async () => {
   }
 
   try {
+    await ensureConfigLoaded();
     const step1Form = document.getElementById("step1-form");
     const t1 = document.getElementById("task1-form");
     const t2 = document.getElementById("task2-form");
@@ -2485,13 +2501,13 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "centro_educativo",
 
       // CBQD
-      "cbqd_enabled",
-      "cbqd_version",
+      "cbqd_on",
+      "cbqd_ver",
       "cbqd_total"
     ];
 
-    cbqdDomainList.forEach(dom => header.push(`cbqd_sub_${dom}`));
-    cbqdItemList.forEach(id => header.push(`cbqd_${id}`));
+    cbqdDomainList.forEach(dom => header.push(`cbqd_dom_${dom}`));
+    cbqdItemList.forEach(id => header.push(`cbqd_item_${id}`));
 
     // IA
     header.push(
