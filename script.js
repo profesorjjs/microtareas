@@ -69,6 +69,41 @@ const DEFAULT_AUTH_CONFIG = {
   adminPassword: "admin2025"
 };
 
+// Caché local de contraseñas (ayuda en iOS/Safari si Firestore falla puntualmente)
+const LS_AUTH_CACHE_KEY = "authConfigCache_v1";
+
+function normalizePwd(s) {
+  return (s ?? "")
+    .toString()
+    .normalize("NFKC")
+    .replace(/\u00A0/g, " ") // NBSP
+    .trim();
+}
+
+function loadAuthCache() {
+  try {
+    const raw = localStorage.getItem(LS_AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAuthCache(authConfig) {
+  try {
+    localStorage.setItem(LS_AUTH_CACHE_KEY, JSON.stringify(authConfig));
+  } catch {
+    // Silencioso: si el navegador bloquea storage, no hacemos nada
+  }
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+
 // NUEVO: configuración por defecto de IA profunda (microservicio externo)
 const DEEP_AI_CONFIG = {
   enabled: true, // pon false si quieres desactivarla temporalmente
@@ -92,15 +127,19 @@ let globalConfig = {
 
 // Estado de carga de configuración (evita que el alumnado entre antes de tener CBQD/contraseñas/ajustes actualizados)
 let _configLoaded = false;
+let _configOk = false;
 let _configLoadPromise = null;
 
 async function ensureConfigLoaded() {
-  if (_configLoaded) return;
+  if (_configLoaded) return _configOk;
   if (_configLoadPromise) return _configLoadPromise;
+
   _configLoadPromise = (async () => {
-    await loadGlobalConfig();
+    _configOk = await loadGlobalConfig();
     _configLoaded = true;
+    return _configOk;
   })();
+
   return _configLoadPromise;
 }
 
@@ -422,6 +461,9 @@ async function loadGlobalConfig() {
       globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
       globalConfig.cbqdEnabled = (data.cbqdEnabled !== undefined) ? !!data.cbqdEnabled : DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = Array.isArray(data.cbqdItems) ? data.cbqdItems : DEFAULT_CBQD_ITEMS;
+
+      // Guarda una copia utilizable de contraseñas para iOS/Safari (si más tarde Firestore falla)
+      saveAuthCache(globalConfig.authConfig);
     } else {
       globalConfig.askCenter = false;
       globalConfig.centers = [];
@@ -429,26 +471,43 @@ async function loadGlobalConfig() {
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
-    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
-    globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
       globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
       globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+
+      saveAuthCache(globalConfig.authConfig);
     }
   } catch (err) {
     console.error("Error cargando configuración global:", err);
+
     globalConfig.askCenter = false;
     globalConfig.centers = [];
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
-    globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
     globalConfig.deepAI = DEEP_AI_CONFIG;
-      globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
-      globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+    globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
+    globalConfig.cbqdItems = DEFAULT_CBQD_ITEMS;
+
+    // En iOS/Safari puede fallar puntualmente Firestore: intenta usar la última config válida
+    const cached = loadAuthCache();
+    if (cached) {
+      globalConfig.authConfig = mergeAuthConfig(cached);
+      applyConfigToUpload();
+      applyConfigToAdmin();
+      buildRatingControls();
+      return false;
+    }
+
+    globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
+    applyConfigToUpload();
+    applyConfigToAdmin();
+    buildRatingControls();
+    return false;
   }
 
   applyConfigToUpload();
   applyConfigToAdmin();
   buildRatingControls();
+  return true;
 }
 
 // Cargar configuración al inicio (y garantizar que esté lista antes de usar contraseñas/CBQD)
@@ -1117,9 +1176,13 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  await ensureConfigLoaded();
+  const ok = await ensureConfigLoaded();
+  // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
+  if (!ok) {
+    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+  }
   const role = document.getElementById("role-select").value;
-  const password = document.getElementById("access-password").value.trim();
+  const password = normalizePwd(document.getElementById("access-password").value);
 
   if (!role) {
     alert("Selecciona un tipo de acceso.");
@@ -1131,6 +1194,8 @@ document.getElementById("login-button").addEventListener("click", async () => {
   if (role === "uploader") expected = auth.uploaderPassword;
   else if (role === "expert") expected = auth.expertPassword;
   else if (role === "admin") expected = auth.adminPassword;
+
+  expected = normalizePwd(expected);
 
   if (password !== expected) {
     alert("Clave incorrecta.");
