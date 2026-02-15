@@ -358,10 +358,19 @@
         <div id="photo-rating-card" class="rating-card hidden">
           <h3>Fotografía a valorar</h3>
           <img id="rating-photo" alt="Fotografía a valorar">
-          <p id="task-label-main" class="note"></p>
           <p id="rating-photo-info"></p>
 
-          <div id="rating-text-block" class="hidden">
+          
+
+          <div id="rating-text-section" class="text-rating-section hidden" aria-live="polite">
+            <h4>Texto asociado</h4>
+            <div id="rating-text-box" class="text-box"></div>
+
+            <h4>Ítems de valoración del texto (1 = muy bajo, 10 = muy alto)</h4>
+            <div id="text-rating-items-container"></div>
+            <p class="puntf">PUNTF texto (media de ítems): <span id="text-puntf-value">0.0</span></p>
+          </div>
+<div id="rating-text-block" class="hidden">
             <h4>Texto creativo asociado</h4>
             <p id="rating-text" class="note"></p>
 
@@ -374,19 +383,6 @@
           <div id="rating-items-container"></div>
 
           <p class="puntf">PUNTF (media de ítems): <span id="puntf-value">0.0</span></p>
-
-          <div id="text-rating-block" class="text-rating-block hidden">
-            <p id="task-label" class="note"></p>
-
-            <h4>Texto creativo asociado</h4>
-            <blockquote id="rating-text" class="creative-text"></blockquote>
-
-            <h4>Ítems de valoración del texto (1 = muy bajo, 10 = muy alto)</h4>
-            <div id="text-rating-items-container"></div>
-
-            <p class="puntf">PUNTF texto (media de ítems): <span id="puntf-text-value">0.0</span></p>
-          </div>
-
 
           <div class="rating-buttons">
             <button id="save-rating-button">Guardar valoración y siguiente</button>
@@ -450,7 +446,17 @@
           placeholder="Originalidad y novedad&#10;Expresión creativa y emocional&#10;Uso innovador de técnicas digitales"></textarea>
         <button type="button" id="save-rating-items-button">Guardar ítems de valoración</button>
         <p class="note">Estos ítems se utilizarán en la interfaz de valoración de las fotografías.</p>
+      
+
+      <h3>Ítems de valoración de textos (microtarea 2)</h3>
+      <div class="form-group">
+        <label for="text-rating-items-textarea">Ítems (uno por línea):</label>
+        <textarea id="text-rating-items-textarea" rows="4"
+          placeholder="Originalidad&#10;Expresión creativa y emocional"></textarea>
+        <button type="button" id="save-text-rating-items-button">Guardar ítems de valoración de textos</button>
+        <p class="note">Estos ítems se utilizarán para valorar el texto creativo asociado (cuando exista).</p>
       </div>
+</div>
 
       <h3>Claves de acceso</h3>
       <div class="form-group">

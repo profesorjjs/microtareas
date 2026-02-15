@@ -45,15 +45,11 @@ const DEFAULT_RATING_ITEMS = [
   { id: "item5", label: "Interacción y cocreación" }
 ];
 
-
-// Ítems por defecto para valorar el texto creativo (independientes de la fotografía)
+// Ítems de valoración por defecto (textos asociados)
 const DEFAULT_TEXT_RATING_ITEMS = [
-  { id: "titem1", label: "Originalidad de la idea" },
-  { id: "titem2", label: "Reinterpretación del objeto" },
-  { id: "titem3", label: "Coherencia interna" },
-  { id: "titem4", label: "Potencia expresiva" }
+  { id: "titem1", label: "Originalidad" },
+  { id: "titem2", label: "Expresión creativa y emocional" }
 ];
-
 
 
 // CBQD (cuestionario) por defecto
@@ -168,6 +164,8 @@ const centersTextarea = document.getElementById("centers-textarea");
 const saveCentersButton = document.getElementById("save-centers-button");
 const ratingItemsTextarea = document.getElementById("rating-items-textarea");
 const saveRatingItemsButton = document.getElementById("save-rating-items-button");
+const textRatingItemsTextarea = document.getElementById("text-rating-items-textarea");
+const saveTextRatingItemsButton = document.getElementById("save-text-rating-items-button");
 const resetDbButton = document.getElementById("reset-db-button");
 const studiesSelect = document.getElementById("studies");
 const bachWrapper = document.getElementById("bach-wrapper");
@@ -201,12 +199,6 @@ const savePasswordsButton = document.getElementById("save-passwords-button");
 
 // Rating dinámico (expertos)
 const ratingItemsContainer = document.getElementById("rating-items-container");
-const textRatingBlock = document.getElementById("text-rating-block");
-const taskLabelEl = document.getElementById("task-label");
-const ratingTextEl = document.getElementById("rating-text");
-const textRatingItemsContainer = document.getElementById("text-rating-items-container");
-const puntfTextSpan = document.getElementById("puntf-text-value");
-
 const puntfSpan = document.getElementById("puntf-value");
 let ratingControls = [];
 
@@ -327,6 +319,9 @@ function applyConfigToAdmin() {
   }
   if (ratingItemsTextarea) {
     ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
+  }
+  if (textRatingItemsTextarea) {
+    textRatingItemsTextarea.value = (globalConfig.textRatingItems || []).map(i => i.label).join("\n");
   }
 
   // Claves de acceso
@@ -467,6 +462,68 @@ function updatePuntf() {
   }
 }
 
+
+
+function buildTextRatingControls() {
+  if (!textRatingItemsContainer) return;
+  textRatingItemsContainer.innerHTML = "";
+  textRatingControls = [];
+
+  const items = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+    ? globalConfig.textRatingItems
+    : DEFAULT_TEXT_RATING_ITEMS;
+
+  items.forEach((item, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rating-item";
+
+    const labelEl = document.createElement("label");
+    const inputId = `text-rating-item-${item.id}`;
+    labelEl.setAttribute("for", inputId);
+    labelEl.textContent = `${index + 1}. ${item.label}`;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "1";
+    input.max = "10";
+    input.value = "5";
+    input.id = inputId;
+
+    const valueSpan = document.createElement("span");
+    valueSpan.textContent = "5";
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(valueSpan);
+
+    input.addEventListener("input", () => {
+      valueSpan.textContent = input.value;
+      updateTextPuntf();
+    });
+
+    textRatingItemsContainer.appendChild(wrapper);
+
+    textRatingControls.push({ config: item, input, valueSpan });
+  });
+
+  updateTextPuntf();
+}
+
+function updateTextPuntf() {
+  if (!textRatingControls.length) {
+    if (textPuntfSpan) textPuntfSpan.textContent = "0.0";
+    return;
+  }
+  const sum = textRatingControls.reduce(
+    (acc, rc) => acc + Number(rc.input.value || 0),
+    0
+  );
+  const avg = sum / textRatingControls.length;
+  if (textPuntfSpan) {
+    textPuntfSpan.textContent = avg.toFixed(1);
+  }
+}
+
 function updatePuntfText() {
   if (!textRatingControls.length) {
     if (puntfTextSpan) puntfTextSpan.textContent = "0.0";
@@ -542,6 +599,18 @@ async function loadGlobalConfig() {
         }));
       } else {
         globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
+      globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
+      }
+
+      // Ítems de valoración de textos
+      if (Array.isArray(data.textRatingItems) && data.textRatingItems.length > 0) {
+        globalConfig.textRatingItems = data.textRatingItems.map((it, idx) => ({
+          id: it.id || `titem${idx + 1}`,
+          label: it.label || `Ítem texto ${idx + 1}`
+        }));
+      } else {
+        globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
       }
       globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
       globalConfig.authConfig = mergeAuthConfig(data.authConfig);
@@ -555,6 +624,8 @@ async function loadGlobalConfig() {
       globalConfig.askCenter = false;
       globalConfig.centers = [];
       globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
+      globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
@@ -569,6 +640,8 @@ async function loadGlobalConfig() {
     globalConfig.askCenter = false;
     globalConfig.centers = [];
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
+      globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
     globalConfig.deepAI = DEEP_AI_CONFIG;
     globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
@@ -594,6 +667,7 @@ async function loadGlobalConfig() {
   applyConfigToUpload();
   applyConfigToAdmin();
   buildRatingControls();
+  buildTextRatingControls();
   return true;
 }
 
@@ -626,6 +700,7 @@ if (askCenterToggle) {
       if (!snap.exists()) {
         payload.centers = globalConfig.centers || [];
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
@@ -658,6 +733,7 @@ if (saveCentersButton) {
       if (!snap.exists()) {
         payload.askCenter = globalConfig.askCenter;
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
@@ -716,6 +792,56 @@ if (saveRatingItemsButton) {
   });
 }
 
+
+
+// Guardar ítems de valoración de textos desde el panel admin
+if (saveTextRatingItemsButton) {
+  saveTextRatingItemsButton.addEventListener("click", async () => {
+    if (!textRatingItemsTextarea) return;
+    const rawLines = textRatingItemsTextarea.value.split("\n");
+    const labels = rawLines
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    if (!labels.length) {
+      alert("Debes introducir al menos un ítem de valoración de texto.");
+      return;
+    }
+
+    const textRatingItems = labels.map((label, idx) => ({
+      id: `titem${idx + 1}`,
+      label
+    }));
+
+    globalConfig.textRatingItems = textRatingItems;
+    buildTextRatingControls();
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { textRatingItems };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.centers = globalConfig.centers || [];
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        payload.cbqdEnabled = (globalConfig.cbqdEnabled !== undefined) ? !!globalConfig.cbqdEnabled : DEFAULT_CBQD_ENABLED;
+        payload.cbqdItems = globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Ítems de valoración de textos actualizados.");
+    } catch (err) {
+      console.error("Error guardando ítems de valoración de textos:", err);
+      alert("No se ha podido guardar los ítems de valoración de textos.");
+    }
+  });
+}
+
 // Guardar configuración IA ligera
 if (saveAiConfigButton) {
   saveAiConfigButton.addEventListener("click", async () => {
@@ -750,6 +876,7 @@ if (saveAiConfigButton) {
         payload.askCenter = globalConfig.askCenter;
         payload.centers = globalConfig.centers || [];
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
         await setDoc(configDocRef, payload);
@@ -784,6 +911,7 @@ if (savePasswordsButton) {
         payload.askCenter = globalConfig.askCenter;
         payload.centers = globalConfig.centers || [];
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
         await setDoc(configDocRef, payload);
@@ -2295,7 +2423,6 @@ const noPhotosMessage = document.getElementById("no-photos-message");
 const photoRatingCard = document.getElementById("photo-rating-card");
 const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
-const taskLabelMainEl = document.getElementById("task-label-main");
 const ratingMessage = document.getElementById("rating-message");
 
 let currentPhotoForExpert = null;
@@ -2319,74 +2446,23 @@ function formatTaskId(taskId) {
     case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
     default: return taskId || "—";
   }
+}
+
 
 
 function getAssociatedText(photo) {
-  // Compatibilidad con datos antiguos o campos alternativos
+  if (!photo || typeof photo !== "object") return "";
   const candidates = [
-    photo?.text280,
-    photo?.text,
-    photo?.task2Text,
-    photo?.texto,
-    photo?.caption
+    photo.text280,
+    photo.text,
+    photo.task2Text,
+    photo.texto,
+    photo.caption
   ];
-  const txt = candidates.find(v => typeof v === "string" && v.trim().length > 0);
-  return txt ? txt.trim() : "";
-}
-
-let textRatingControls = [];
-function buildTextRatingControls(items) {
-  if (!textRatingItemsContainer) return;
-  textRatingItemsContainer.innerHTML = "";
-  textRatingControls = [];
-
-  (items || DEFAULT_TEXT_RATING_ITEMS).forEach((item, index) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "rating-item";
-
-    const labelEl = document.createElement("label");
-    const inputId = `text-rating-item-${item.id}`;
-    labelEl.setAttribute("for", inputId);
-    labelEl.textContent = `${index + 1}. ${item.label}`;
-
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = "1";
-    input.max = "10";
-    input.value = "5";
-    input.id = inputId;
-
-    const valueSpan = document.createElement("span");
-    valueSpan.textContent = "5";
-
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(input);
-    wrapper.appendChild(valueSpan);
-
-    input.addEventListener("input", () => {
-      valueSpan.textContent = input.value;
-      updatePuntfText();
-    });
-
-    textRatingItemsContainer.appendChild(wrapper);
-
-    textRatingControls.push({ config: item, input, valueSpan });
-  });
-
-  updatePuntfText();
-}
-
-function updatePuntfText() {
-  if (!puntfTextSpan) return;
-  if (!textRatingControls.length) {
-    puntfTextSpan.textContent = "0.0";
-    return;
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim().length) return c.trim();
   }
-  const sum = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
-  const avg = sum / textRatingControls.length;
-  puntfTextSpan.textContent = avg.toFixed(1);
-}
-
+  return "";
 }
 
 async function loadNextPhotoForExpert() {
@@ -2425,8 +2501,6 @@ async function loadNextPhotoForExpert() {
     const photo = pending[randomIndex];
     currentPhotoForExpert = photo;
 
-    if (taskLabelMainEl) taskLabelMainEl.textContent = `Microtarea: ${formatTaskId(photo.taskId)}`;
-
     ratingPhoto.src = photo.dataUrl || photo.imageDataUrl || "";
 
     const aiText1 = photo.aiScore != null ? ` | AI_PUNTF: ${photo.aiScore}` : "";
@@ -2441,6 +2515,24 @@ async function loadNextPhotoForExpert() {
       `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
       aiText1 + aiText2 + aiText3;
+
+    // Texto asociado (si existe): mostrar en cuadro + valoración independiente
+    const assocText = getAssociatedText(photo);
+    if (assocText && ratingTextSection && ratingTextBox) {
+      ratingTextSection.classList.remove("hidden");
+      ratingTextBox.textContent = assocText;
+
+      // Reset sliders de texto
+      textRatingControls.forEach(rc => {
+        rc.input.value = 5;
+        rc.valueSpan.textContent = "5";
+      });
+      updateTextPuntf();
+    } else if (ratingTextSection) {
+      ratingTextSection.classList.add("hidden");
+      if (ratingTextBox) ratingTextBox.textContent = "";
+      if (textPuntfSpan) textPuntfSpan.textContent = "0.0";
+    }
 
     // Texto asociado (solo si existe)
     if (photo.text280 && String(photo.text280).trim().length > 0) {
@@ -2495,8 +2587,9 @@ document.getElementById("save-rating-button").addEventListener("click", async ()
   });
   const puntf = sum / ratingControls.length;
 
-  // Texto asociado (si existe en la foto): misma escala e ítems.
-  const hasText = !!(currentPhotoForExpert.text280 && String(currentPhotoForExpert.text280).trim().length > 0);
+  // Texto asociado (si existe): valoración independiente con ítems configurables.
+  const assocText = getAssociatedText(currentPhotoForExpert);
+  const hasText = !!assocText;
   let textRatingsMap = null;
   let textPuntf = null;
   if (hasText) {
@@ -2520,21 +2613,11 @@ document.getElementById("save-rating-button").addEventListener("click", async ()
       expertId,
       ratings: ratingsMap,
       puntf,
-
-      // Texto (si existe): valoración independiente
-      hasText: !!getAssociatedText(currentPhotoForExpert),
-      text: getAssociatedText(currentPhotoForExpert) || "",
-      textRatings: (() => {
-        const map = {};
-        textRatingControls.forEach(rc => { map[rc.config.id] = Number(rc.input.value); });
-        return map;
-      })(),
-      textPuntf: (() => {
-        if (!textRatingControls.length) return null;
-        const s = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
-        return s / textRatingControls.length;
-      })(),
-
+      hasText,
+      textRatings: textRatingsMap,
+      textPuntf,
+      text: assocText,
+      textItemsUsed: (globalConfig.textRatingItems && globalConfig.textRatingItems.length) ? globalConfig.textRatingItems : DEFAULT_TEXT_RATING_ITEMS,
       createdAt: new Date().toISOString()
     });
 
@@ -2666,6 +2749,10 @@ async function loadAllPhotosWithRatings() {
       ? globalConfig.ratingItems
       : DEFAULT_RATING_ITEMS;
 
+    const textItems = globalConfig.textRatingItems && globalConfig.textRatingItems.length
+      ? globalConfig.textRatingItems
+      : DEFAULT_TEXT_RATING_ITEMS;
+
     photosList.innerHTML = "";
     photosSnap.docs.forEach(docSnap => {
       const p = docSnap.data();
@@ -2728,7 +2815,7 @@ async function loadAllPhotosWithRatings() {
         headerHtml += "<th>PUNTF</th>";
 
         if (hasTextCols) {
-          items.forEach(item => {
+          textItems.forEach(item => {
             headerHtml += `<th>Texto: ${item.label}</th>`;
           });
           headerHtml += "<th>PUNTF texto</th>";
@@ -2756,7 +2843,7 @@ async function loadAllPhotosWithRatings() {
 
           if (hasTextCols) {
             const tMap = r.textRatings || {};
-            items.forEach((item, idx) => {
+            textItems.forEach((item, idx) => {
               let val = tMap[item.id];
               // Compatibilidad extra: por si alguien guardó con subText1...
               if (val === undefined && r[`subText${idx + 1}`] !== undefined) {
@@ -2903,8 +2990,11 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
     ratingItems.forEach(item => header.push(item.label));
     header.push("puntf");
 
-    // NUEVO: valoración del texto asociado (si existe)
-    ratingItems.forEach(item => header.push(`texto_${item.label}`));
+    // Valoración del texto asociado (si existe)
+    const textItems = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+      ? globalConfig.textRatingItems
+      : DEFAULT_TEXT_RATING_ITEMS;
+    textItems.forEach(item => header.push(`texto_${item.label}`));
     header.push("puntf_texto");
 
     const rows = [header];
@@ -3052,7 +3142,10 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
 
       // Ratings de texto (si existen)
       const textRatingsMap = rOrNull?.textRatings || {};
-      ratingItems.forEach((item, idx) => {
+      const textItems2 = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+        ? globalConfig.textRatingItems
+        : DEFAULT_TEXT_RATING_ITEMS;
+      textItems2.forEach((item, idx) => {
         let val = textRatingsMap[item.id];
         if (val === undefined && rOrNull && rOrNull[`subText${idx + 1}`] !== undefined) {
           val = rOrNull[`subText${idx + 1}`];
