@@ -446,25 +446,20 @@ button.secondary:hover {
 }
 
 
-/* ----- Texto asociado (expertos) ----- */
-.creative-text-box {
-  background: #fff7e6;
-  border: 1px solid #ffe0b2;
+/* ----- Perfil experto: texto creativo asociado ----- */
+.expert-text-block {
+  margin-top: 0.9rem;
+}
+
+.expert-text-box {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
   border-left: 6px solid #ffb300;
   border-radius: 10px;
-  padding: 0.9rem 1rem;
-  margin: 0.4rem 0 0.9rem;
-  font-size: 0.98rem;
+  padding: 0.8rem 0.9rem;
   line-height: 1.45;
-  color: #222;
   white-space: pre-wrap;
-}
-.creative-text-box .label {
-  display: block;
-  font-weight: 700;
-  margin-bottom: 0.35rem;
-  color: #6d4c41;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: 0.95rem;
+  margin-top: 0.3rem;
+  margin-bottom: 0.75rem;
 }
