@@ -444,3 +444,19 @@ button.secondary:hover {
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
 }
+
+
+/* ----- Valoración de texto (microtarea 2) ----- */
+.text-rating-block{
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #ddd;
+}
+.creative-text{
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+  border-left: 4px solid #3949ab;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}

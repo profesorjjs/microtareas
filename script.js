@@ -46,6 +46,16 @@ const DEFAULT_RATING_ITEMS = [
 ];
 
 
+// Ítems por defecto para valorar el texto creativo (independientes de la fotografía)
+const DEFAULT_TEXT_RATING_ITEMS = [
+  { id: "titem1", label: "Originalidad de la idea" },
+  { id: "titem2", label: "Reinterpretación del objeto" },
+  { id: "titem3", label: "Coherencia interna" },
+  { id: "titem4", label: "Potencia expresiva" }
+];
+
+
+
 // CBQD (cuestionario) por defecto
 const DEFAULT_CBQD_ENABLED = true;
 // Por defecto no incluimos ítems: deben configurarse en el panel de investigación con la versión validada que uses.
@@ -191,8 +201,21 @@ const savePasswordsButton = document.getElementById("save-passwords-button");
 
 // Rating dinámico (expertos)
 const ratingItemsContainer = document.getElementById("rating-items-container");
+const textRatingBlock = document.getElementById("text-rating-block");
+const taskLabelEl = document.getElementById("task-label");
+const ratingTextEl = document.getElementById("rating-text");
+const textRatingItemsContainer = document.getElementById("text-rating-items-container");
+const puntfTextSpan = document.getElementById("puntf-text-value");
+
 const puntfSpan = document.getElementById("puntf-value");
 let ratingControls = [];
+
+// NUEVO: valoración de texto asociado (microtarea 2)
+const ratingTextBlock = document.getElementById("rating-text-block");
+const ratingTextP = document.getElementById("rating-text");
+const textRatingItemsContainer = document.getElementById("text-rating-items-container");
+const puntfTextSpan = document.getElementById("puntf-text-value");
+let textRatingControls = [];
 
 // Botones "Volver al inicio"
 const backButtons = document.querySelectorAll(".back-button");
@@ -378,6 +401,55 @@ function buildRatingControls() {
   });
 
   updatePuntf();
+
+  // Construye también los controles de valoración del texto (si existe el contenedor en la UI)
+  buildTextRatingControls(items);
+}
+
+function buildTextRatingControls(items) {
+  if (!textRatingItemsContainer) return;
+
+  textRatingItemsContainer.innerHTML = "";
+  textRatingControls = [];
+
+  (items || []).forEach((item, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rating-item";
+
+    const labelEl = document.createElement("label");
+    const inputId = `text-rating-item-${item.id}`;
+    labelEl.setAttribute("for", inputId);
+    labelEl.textContent = `${index + 1}. ${item.label}`;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "1";
+    input.max = "10";
+    input.value = "5";
+    input.id = inputId;
+
+    const valueSpan = document.createElement("span");
+    valueSpan.textContent = "5";
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(valueSpan);
+
+    input.addEventListener("input", () => {
+      valueSpan.textContent = input.value;
+      updatePuntfText();
+    });
+
+    textRatingItemsContainer.appendChild(wrapper);
+
+    textRatingControls.push({
+      config: item,
+      input,
+      valueSpan
+    });
+  });
+
+  updatePuntfText();
 }
 
 function updatePuntf() {
@@ -392,6 +464,21 @@ function updatePuntf() {
   const avg = sum / ratingControls.length;
   if (puntfSpan) {
     puntfSpan.textContent = avg.toFixed(1);
+  }
+}
+
+function updatePuntfText() {
+  if (!textRatingControls.length) {
+    if (puntfTextSpan) puntfTextSpan.textContent = "0.0";
+    return;
+  }
+  const sum = textRatingControls.reduce(
+    (acc, rc) => acc + Number(rc.input.value || 0),
+    0
+  );
+  const avg = sum / textRatingControls.length;
+  if (puntfTextSpan) {
+    puntfTextSpan.textContent = avg.toFixed(1);
   }
 }
 
@@ -2208,6 +2295,7 @@ const noPhotosMessage = document.getElementById("no-photos-message");
 const photoRatingCard = document.getElementById("photo-rating-card");
 const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
+const taskLabelMainEl = document.getElementById("task-label-main");
 const ratingMessage = document.getElementById("rating-message");
 
 let currentPhotoForExpert = null;
@@ -2231,6 +2319,74 @@ function formatTaskId(taskId) {
     case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
     default: return taskId || "—";
   }
+
+
+function getAssociatedText(photo) {
+  // Compatibilidad con datos antiguos o campos alternativos
+  const candidates = [
+    photo?.text280,
+    photo?.text,
+    photo?.task2Text,
+    photo?.texto,
+    photo?.caption
+  ];
+  const txt = candidates.find(v => typeof v === "string" && v.trim().length > 0);
+  return txt ? txt.trim() : "";
+}
+
+let textRatingControls = [];
+function buildTextRatingControls(items) {
+  if (!textRatingItemsContainer) return;
+  textRatingItemsContainer.innerHTML = "";
+  textRatingControls = [];
+
+  (items || DEFAULT_TEXT_RATING_ITEMS).forEach((item, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rating-item";
+
+    const labelEl = document.createElement("label");
+    const inputId = `text-rating-item-${item.id}`;
+    labelEl.setAttribute("for", inputId);
+    labelEl.textContent = `${index + 1}. ${item.label}`;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "1";
+    input.max = "10";
+    input.value = "5";
+    input.id = inputId;
+
+    const valueSpan = document.createElement("span");
+    valueSpan.textContent = "5";
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(valueSpan);
+
+    input.addEventListener("input", () => {
+      valueSpan.textContent = input.value;
+      updatePuntfText();
+    });
+
+    textRatingItemsContainer.appendChild(wrapper);
+
+    textRatingControls.push({ config: item, input, valueSpan });
+  });
+
+  updatePuntfText();
+}
+
+function updatePuntfText() {
+  if (!puntfTextSpan) return;
+  if (!textRatingControls.length) {
+    puntfTextSpan.textContent = "0.0";
+    return;
+  }
+  const sum = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
+  const avg = sum / textRatingControls.length;
+  puntfTextSpan.textContent = avg.toFixed(1);
+}
+
 }
 
 async function loadNextPhotoForExpert() {
@@ -2269,6 +2425,8 @@ async function loadNextPhotoForExpert() {
     const photo = pending[randomIndex];
     currentPhotoForExpert = photo;
 
+    if (taskLabelMainEl) taskLabelMainEl.textContent = `Microtarea: ${formatTaskId(photo.taskId)}`;
+
     ratingPhoto.src = photo.dataUrl || photo.imageDataUrl || "";
 
     const aiText1 = photo.aiScore != null ? ` | AI_PUNTF: ${photo.aiScore}` : "";
@@ -2282,8 +2440,22 @@ async function loadNextPhotoForExpert() {
     ratingPhotoInfo.textContent =
       `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
-      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
       aiText1 + aiText2 + aiText3;
+
+    // Texto asociado (solo si existe)
+    if (photo.text280 && String(photo.text280).trim().length > 0) {
+      ratingTextBlock?.classList.remove("hidden");
+      if (ratingTextP) ratingTextP.textContent = String(photo.text280);
+
+      textRatingControls.forEach(rc => {
+        rc.input.value = 5;
+        rc.valueSpan.textContent = "5";
+      });
+      updatePuntfText();
+    } else {
+      ratingTextBlock?.classList.add("hidden");
+      if (ratingTextP) ratingTextP.textContent = "";
+    }
 
     ratingControls.forEach(rc => {
       rc.input.value = 5;
@@ -2323,12 +2495,46 @@ document.getElementById("save-rating-button").addEventListener("click", async ()
   });
   const puntf = sum / ratingControls.length;
 
+  // Texto asociado (si existe en la foto): misma escala e ítems.
+  const hasText = !!(currentPhotoForExpert.text280 && String(currentPhotoForExpert.text280).trim().length > 0);
+  let textRatingsMap = null;
+  let textPuntf = null;
+  if (hasText) {
+    if (!textRatingControls.length) {
+      alert("No se han podido cargar los ítems de valoración del texto.");
+      return;
+    }
+    textRatingsMap = {};
+    let sumT = 0;
+    textRatingControls.forEach(rc => {
+      const v = Number(rc.input.value);
+      sumT += v;
+      textRatingsMap[rc.config.id] = v;
+    });
+    textPuntf = sumT / textRatingControls.length;
+  }
+
   try {
     await addDoc(ratingsCol, {
       photoId: currentPhotoForExpert.id,
       expertId,
       ratings: ratingsMap,
       puntf,
+
+      // Texto (si existe): valoración independiente
+      hasText: !!getAssociatedText(currentPhotoForExpert),
+      text: getAssociatedText(currentPhotoForExpert) || "",
+      textRatings: (() => {
+        const map = {};
+        textRatingControls.forEach(rc => { map[rc.config.id] = Number(rc.input.value); });
+        return map;
+      })(),
+      textPuntf: (() => {
+        if (!textRatingControls.length) return null;
+        const s = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
+        return s / textRatingControls.length;
+      })(),
+
       createdAt: new Date().toISOString()
     });
 
@@ -2487,6 +2693,7 @@ async function loadAllPhotosWithRatings() {
         Estudios: ${p.studies || ""} | Bachillerato: ${p.bachType || ""}<br>
         Vocación: ${p.vocation || ""}<br>
         Centro: ${p.center || ""}<br>
+        ${p.text280 ? `<strong>Texto (≤280):</strong> ${String(p.text280).replace(/</g, "&lt;").replace(/>/g, "&gt;")}<br>` : ""}
         ${ai1} ${ai2} ${ai3}
       `;
 
@@ -2512,11 +2719,22 @@ async function loadAllPhotosWithRatings() {
         const table = document.createElement("table");
         const thead = document.createElement("thead");
 
+        const hasTextCols = rList.some(r => r?.hasText || r?.textRatings || (typeof r?.textPuntf === "number"));
+
         let headerHtml = "<tr><th>Experto/a</th>";
         items.forEach(item => {
           headerHtml += `<th>${item.label}</th>`;
         });
-        headerHtml += "<th>PUNTF</th></tr>";
+        headerHtml += "<th>PUNTF</th>";
+
+        if (hasTextCols) {
+          items.forEach(item => {
+            headerHtml += `<th>Texto: ${item.label}</th>`;
+          });
+          headerHtml += "<th>PUNTF texto</th>";
+        }
+
+        headerHtml += "</tr>";
         thead.innerHTML = headerHtml;
         table.appendChild(thead);
 
@@ -2535,6 +2753,19 @@ async function loadAllPhotosWithRatings() {
             rowHtml += `<td>${val ?? ""}</td>`;
           });
           rowHtml += `<td>${typeof r.puntf === "number" ? r.puntf.toFixed(2) : ""}</td>`;
+
+          if (hasTextCols) {
+            const tMap = r.textRatings || {};
+            items.forEach((item, idx) => {
+              let val = tMap[item.id];
+              // Compatibilidad extra: por si alguien guardó con subText1...
+              if (val === undefined && r[`subText${idx + 1}`] !== undefined) {
+                val = r[`subText${idx + 1}`];
+              }
+              rowHtml += `<td>${val ?? ""}</td>`;
+            });
+            rowHtml += `<td>${typeof r.textPuntf === "number" ? r.textPuntf.toFixed(2) : ""}</td>`;
+          }
 
           tr.innerHTML = rowHtml;
           tbody.appendChild(tr);
@@ -2671,6 +2902,10 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
 
     ratingItems.forEach(item => header.push(item.label));
     header.push("puntf");
+
+    // NUEVO: valoración del texto asociado (si existe)
+    ratingItems.forEach(item => header.push(`texto_${item.label}`));
+    header.push("puntf_texto");
 
     const rows = [header];
 
@@ -2814,6 +3049,17 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       });
 
       base.push(rOrNull && typeof rOrNull.puntf === "number" ? rOrNull.puntf.toFixed(2) : "");
+
+      // Ratings de texto (si existen)
+      const textRatingsMap = rOrNull?.textRatings || {};
+      ratingItems.forEach((item, idx) => {
+        let val = textRatingsMap[item.id];
+        if (val === undefined && rOrNull && rOrNull[`subText${idx + 1}`] !== undefined) {
+          val = rOrNull[`subText${idx + 1}`];
+        }
+        base.push(val ?? "");
+      });
+      base.push(rOrNull && typeof rOrNull.textPuntf === "number" ? rOrNull.textPuntf.toFixed(2) : "");
       return base;
     }
 
