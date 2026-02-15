@@ -45,6 +45,13 @@ const DEFAULT_RATING_ITEMS = [
   { id: "item5", label: "Interacción y cocreación" }
 ];
 
+// Ítems de valoración por defecto (texto asociado)
+const DEFAULT_TEXT_RATING_ITEMS = [
+  { id: "titem1", label: "Originalidad" },
+  { id: "titem2", label: "Expresión creativa y emocional" }
+];
+
+
 
 // CBQD (cuestionario) por defecto
 const DEFAULT_CBQD_ENABLED = true;
@@ -116,6 +123,7 @@ let globalConfig = {
   askCenter: false,
   centers: [],
   ratingItems: DEFAULT_RATING_ITEMS,
+  textRatingItems: DEFAULT_TEXT_RATING_ITEMS,
   aiConfig: DEFAULT_AI_CONFIG,
   authConfig: DEFAULT_AUTH_CONFIG,
   deepAI: DEEP_AI_CONFIG,
@@ -157,6 +165,8 @@ const askCenterToggle = document.getElementById("ask-center-toggle");
 const centersTextarea = document.getElementById("centers-textarea");
 const saveCentersButton = document.getElementById("save-centers-button");
 const ratingItemsTextarea = document.getElementById("rating-items-textarea");
+const textRatingItemsTextarea = document.getElementById("text-rating-items-textarea");
+const saveTextRatingItemsButton = document.getElementById("save-text-rating-items-button");
 const saveRatingItemsButton = document.getElementById("save-rating-items-button");
 const resetDbButton = document.getElementById("reset-db-button");
 const studiesSelect = document.getElementById("studies");
@@ -191,6 +201,11 @@ const savePasswordsButton = document.getElementById("save-passwords-button");
 
 // Rating dinámico (expertos)
 const ratingItemsContainer = document.getElementById("rating-items-container");
+const textRatingItemsContainer = document.getElementById("text-rating-items-container");
+const ratingTextBlock = document.getElementById("rating-text-block");
+const ratingTextBox = document.getElementById("rating-text-box");
+const textPuntfSpan = document.getElementById("text-puntf-value");
+let textRatingControls = [];
 const puntfSpan = document.getElementById("puntf-value");
 let ratingControls = [];
 
@@ -305,6 +320,12 @@ function applyConfigToAdmin() {
   if (ratingItemsTextarea) {
     ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
   }
+  if (textRatingItemsTextarea) {
+    const tis = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+      ? globalConfig.textRatingItems
+      : DEFAULT_TEXT_RATING_ITEMS;
+    textRatingItemsTextarea.value = tis.map(i => i.label).join("\n");
+  }
 
   // Claves de acceso
   const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
@@ -378,6 +399,62 @@ function buildRatingControls() {
   });
 
   updatePuntf();
+}
+
+
+function buildTextRatingControls() {
+  if (!textRatingItemsContainer) return;
+  textRatingItemsContainer.innerHTML = "";
+  textRatingControls = [];
+
+  const items = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+    ? globalConfig.textRatingItems
+    : DEFAULT_TEXT_RATING_ITEMS;
+
+  items.forEach((item, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "rating-item";
+
+    const labelEl = document.createElement("label");
+    const inputId = `text-rating-item-${item.id}`;
+    labelEl.setAttribute("for", inputId);
+    labelEl.textContent = `${index + 1}. ${item.label}`;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "1";
+    input.max = "10";
+    input.value = "5";
+    input.id = inputId;
+
+    const valueSpan = document.createElement("span");
+    valueSpan.textContent = "5";
+
+    wrapper.appendChild(labelEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(valueSpan);
+
+    input.addEventListener("input", () => {
+      valueSpan.textContent = input.value;
+      updateTextPuntf();
+    });
+
+    textRatingItemsContainer.appendChild(wrapper);
+
+    textRatingControls.push({ config: item, input, valueSpan });
+  });
+
+  updateTextPuntf();
+}
+
+function updateTextPuntf() {
+  if (!textRatingControls.length) {
+    if (textPuntfSpan) textPuntfSpan.textContent = "0.0";
+    return;
+  }
+  const sum = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
+  const avg = sum / textRatingControls.length;
+  if (textPuntfSpan) textPuntfSpan.textContent = avg.toFixed(1);
 }
 
 function updatePuntf() {
@@ -456,6 +533,15 @@ async function loadGlobalConfig() {
         }));
       } else {
         globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
+      }
+      if (Array.isArray(data.textRatingItems) && data.textRatingItems.length > 0) {
+        globalConfig.textRatingItems = data.textRatingItems.map((it, idx) => ({
+          id: it.id || `titem${idx + 1}`,
+          label: it.label || `Ítem texto ${idx + 1}`
+        }));
+      } else {
+        globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
       }
       globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
       globalConfig.authConfig = mergeAuthConfig(data.authConfig);
@@ -469,6 +555,7 @@ async function loadGlobalConfig() {
       globalConfig.askCenter = false;
       globalConfig.centers = [];
       globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
@@ -483,6 +570,7 @@ async function loadGlobalConfig() {
     globalConfig.askCenter = false;
     globalConfig.centers = [];
     globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
+    globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
     globalConfig.aiConfig = DEFAULT_AI_CONFIG;
     globalConfig.deepAI = DEEP_AI_CONFIG;
     globalConfig.cbqdEnabled = DEFAULT_CBQD_ENABLED;
@@ -495,6 +583,7 @@ async function loadGlobalConfig() {
       applyConfigToUpload();
       applyConfigToAdmin();
       buildRatingControls();
+      buildTextRatingControls();
       return false;
     }
 
@@ -502,12 +591,14 @@ async function loadGlobalConfig() {
     applyConfigToUpload();
     applyConfigToAdmin();
     buildRatingControls();
+    buildTextRatingControls();
     return false;
   }
 
   applyConfigToUpload();
   applyConfigToAdmin();
   buildRatingControls();
+  buildTextRatingControls();
   return true;
 }
 
@@ -628,6 +719,50 @@ if (saveRatingItemsButton) {
       alert("No se ha podido guardar los ítems de valoración.");
     }
   });
+
+
+// Guardar ítems de valoración de texto desde el panel admin
+if (saveTextRatingItemsButton) {
+  saveTextRatingItemsButton.addEventListener("click", async () => {
+    if (!textRatingItemsTextarea) return;
+    const rawLines = textRatingItemsTextarea.value.split("\n");
+    const labels = rawLines.map(l => l.trim()).filter(l => l.length > 0);
+
+    if (!labels.length) {
+      alert("Debes introducir al menos un ítem de valoración para el texto.");
+      return;
+    }
+
+    const textRatingItems = labels.map((label, idx) => ({
+      id: `titem${idx + 1}`,
+      label
+    }));
+
+    globalConfig.textRatingItems = textRatingItems;
+
+    try {
+      const snap = await getDoc(configDocRef);
+      const payload = { textRatingItems };
+      if (!snap.exists()) {
+        payload.askCenter = globalConfig.askCenter;
+        payload.centers = globalConfig.centers || [];
+        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
+        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
+        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
+        payload.cbqdEnabled = globalConfig.cbqdEnabled;
+        payload.cbqdItems = globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS;
+        await setDoc(configDocRef, payload);
+      } else {
+        await updateDoc(configDocRef, payload);
+      }
+      alert("Ítems de texto actualizados.");
+    } catch (err) {
+      console.error("Error guardando ítems de texto:", err);
+      alert("No se ha podido guardar los ítems de texto.");
+    }
+  });
+}
 }
 
 // Guardar configuración IA ligera
@@ -2232,6 +2367,16 @@ function formatTaskId(taskId) {
     case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
     default: return taskId || "—";
   }
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 }
 
 async function loadNextPhotoForExpert() {
@@ -2280,13 +2425,37 @@ async function loadNextPhotoForExpert() {
       ? ` | IA_profunda: ${photo.deepAI.deepScore}`
       : "";
 
+        // Texto asociado (si lo hay)
+    const assocText = (photo.text280 ?? photo.text ?? photo.task2Text ?? photo.texto ?? photo.caption ?? "").toString().trim();
+    const hasText = assocText.length > 0;
+
+    // Información base (sin el texto, que se muestra destacado debajo)
     ratingPhotoInfo.textContent =
-      `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
+      `ID: ${photo.id} | Microtarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
-      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
       aiText1 + aiText2 + aiText3;
 
-    ratingControls.forEach(rc => {
+    // Mostrar/ocultar cuadro de texto + controles de texto
+    if (ratingTextBlock && ratingTextBox) {
+      if (hasText) {
+        ratingTextBlock.classList.remove("hidden");
+        ratingTextBox.innerHTML = `<span class="label">Texto del alumnado</span>${escapeHtml(assocText)}`;
+        // Inicializa sliders de texto
+        buildTextRatingControls();
+        textRatingControls.forEach(rc => {
+          rc.input.value = 5;
+          rc.valueSpan.textContent = "5";
+        });
+        updateTextPuntf();
+      } else {
+        ratingTextBlock.classList.add("hidden");
+        ratingTextBox.textContent = "";
+        if (textRatingItemsContainer) textRatingItemsContainer.innerHTML = "";
+        if (textPuntfSpan) textPuntfSpan.textContent = "0.0";
+      }
+    }
+
+    ratingControls.forEach    ratingControls.forEach(rc => {
       rc.input.value = 5;
       rc.valueSpan.textContent = "5";
     });
@@ -2315,7 +2484,7 @@ document.getElementById("save-rating-button").addEventListener("click", async ()
     return;
   }
 
-  const ratingsMap = {};
+    const ratingsMap = {};
   let sum = 0;
   ratingControls.forEach(rc => {
     const v = Number(rc.input.value);
@@ -2324,12 +2493,37 @@ document.getElementById("save-rating-button").addEventListener("click", async ()
   });
   const puntf = sum / ratingControls.length;
 
+  // Texto asociado (si lo hay) + ratings de texto
+  const assocText = (currentPhotoForExpert.text280 ?? currentPhotoForExpert.text ?? currentPhotoForExpert.task2Text ?? currentPhotoForExpert.texto ?? currentPhotoForExpert.caption ?? "").toString().trim();
+  const hasText = assocText.length > 0;
+
+  let textRatingsMap = null;
+  let textPuntf = null;
+  if (hasText) {
+    if (!textRatingControls.length) {
+      alert("Esta fotografía tiene texto asociado, pero no hay ítems de valoración de texto configurados.");
+      return;
+    }
+    textRatingsMap = {};
+    let tSum = 0;
+    textRatingControls.forEach(rc => {
+      const v = Number(rc.input.value);
+      tSum += v;
+      textRatingsMap[rc.config.id] = v;
+    });
+    textPuntf = tSum / textRatingControls.length;
+  }
+
   try {
     await addDoc(ratingsCol, {
       photoId: currentPhotoForExpert.id,
       expertId,
       ratings: ratingsMap,
       puntf,
+      hasText,
+      text: hasText ? assocText : "",
+      textRatings: textRatingsMap,
+      textPuntf,
       createdAt: new Date().toISOString()
     });
 
@@ -2673,6 +2867,12 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
     ratingItems.forEach(item => header.push(item.label));
     header.push("puntf");
 
+    const textRatingItems = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+      ? globalConfig.textRatingItems
+      : DEFAULT_TEXT_RATING_ITEMS;
+    textRatingItems.forEach(item => header.push(`TEXTO_${item.label}`));
+    header.push("puntf_texto");
+
     const rows = [header];
 
     const ratingsArr = ratingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2815,6 +3015,17 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       });
 
       base.push(rOrNull && typeof rOrNull.puntf === "number" ? rOrNull.puntf.toFixed(2) : "");
+
+      // Ratings de texto (si existen en la valoración)
+      const textItems = (globalConfig.textRatingItems && globalConfig.textRatingItems.length)
+        ? globalConfig.textRatingItems
+        : DEFAULT_TEXT_RATING_ITEMS;
+      const tMap = rOrNull?.textRatings || {};
+      textItems.forEach((item) => {
+        base.push(tMap && tMap[item.id] !== undefined ? tMap[item.id] : "");
+      });
+      base.push(rOrNull && typeof rOrNull.textPuntf === "number" ? rOrNull.textPuntf.toFixed(2) : "");
+
       return base;
     }
 

@@ -358,6 +358,14 @@
           <img id="rating-photo" alt="Fotografía a valorar">
           <p id="rating-photo-info"></p>
 
+          <div id="rating-text-block" class="hidden">
+            <h4>Texto asociado (alumnado)</h4>
+            <div id="rating-text-box" class="creative-text-box" aria-live="polite"></div>
+            <h4>Ítems de valoración del texto (1 = muy bajo, 10 = muy alto)</h4>
+            <div id="text-rating-items-container"></div>
+            <p class="puntf">PUNTF texto (media de ítems): <span id="text-puntf-value">0.0</span></p>
+          </div>
+
           <h4>Ítems de valoración (1 = muy bajo, 10 = muy alto)</h4>
           <div id="rating-items-container"></div>
 
@@ -432,6 +440,16 @@
         <label for="uploader-password-input">Clave para alumnado (subir fotografías):</label>
         <input type="text" id="uploader-password-input" placeholder="alumno2025">
       </div>
+
+      <h3>Ítems de valoración de textos</h3>
+      <div class="form-group">
+        <label for="text-rating-items-textarea">Ítems (uno por línea):</label>
+        <textarea id="text-rating-items-textarea" rows="4"
+          placeholder="Originalidad\nExpresión creativa y emocional"></textarea>
+        <button type="button" id="save-text-rating-items-button">Guardar ítems de texto</button>
+        <p class="note">Estos ítems se utilizarán cuando una fotografía tenga un texto asociado (p. ej., microtarea 2).</p>
+      </div>
+
       <div class="form-group">
         <label for="expert-password-input">Clave para expertos/as (valorar fotografías):</label>
         <input type="text" id="expert-password-input" placeholder="experto2025">
