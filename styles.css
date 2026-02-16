@@ -444,3 +444,9 @@ button.secondary:hover {
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
 }
+
+
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
