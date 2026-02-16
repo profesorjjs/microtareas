@@ -1176,10 +1176,17 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
+  // 1) Asegura que existe configuración mínima (y cache de auth si Firestore falla)
   const ok = await ensureConfigLoaded();
-  // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
-  if (!ok) {
-    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+  // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
+  //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
+  try {
+    await loadGlobalConfig();
+  } catch (err) {
+    // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
+    if (!ok) {
+      try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+    }
   }
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
@@ -1205,6 +1212,9 @@ document.getElementById("login-button").addEventListener("click", async () => {
   loginSection.classList.add("hidden");
 
   if (role === "uploader") {
+    // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
+    try { await loadGlobalConfig(); } catch (_) {}
+    applyConfigToUpload();
     resetUploaderState({ newParticipant: true });
     showSection("upload");
   } else if (role === "expert") {
@@ -1630,7 +1640,12 @@ function updateCbqdScores() {
   }
 }
 
-// Nota: la tarea 2 ya no incluye texto; solo fotografía.
+// contador microtarea 2
+const task2TextArea = document.getElementById("task2-text");
+task2TextArea?.addEventListener("input", () => {
+  const c = document.getElementById("task2-count");
+  if (c) c.textContent = String(task2TextArea.value.length);
+});
 
 // ==================================================
 // Análisis automático (IA) para microtareas (preview)
@@ -1772,13 +1787,9 @@ wizardNext?.addEventListener("click", async () => {
   const step1Form = document.getElementById("step1-form");
   if (step1Form && !step1Form.reportValidity()) return;
 
-  // IMPORTANTE:
-  // Si el CBQD se activa/desactiva desde el panel admin mientras la página ya está abierta,
-  // este botón debe respetar la configuración más reciente.
-  // Forzamos una recarga rápida (si falla, seguimos con la config actual en memoria).
-  try {
-    await loadGlobalConfig();
-  } catch (_) {}
+  // Refresca la config justo antes de calcular el siguiente paso.
+  // Así, si el CBQD se activa/desactiva en admin, el alumnado ve el paso 2 al instante.
+  try { await loadGlobalConfig(); } catch (_) {}
 
   showWizardStepByIndex(wizardIdx + 1);
 });
@@ -1862,8 +1873,10 @@ submitAllBtn?.addEventListener("click", async () => {
     const f1 = document.getElementById("task1-photo")?.files?.[0];
     const f2 = document.getElementById("task2-photo")?.files?.[0];
     const f3 = document.getElementById("task3-output")?.files?.[0];
+    const task2Text = (document.getElementById("task2-text")?.value || "").trim();
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
+    if (!task2Text || task2Text.length > 280) throw new Error("El texto de la microtarea 2 es obligatorio y ≤ 280 caracteres.");
 
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
@@ -1978,6 +1991,7 @@ submitAllBtn?.addEventListener("click", async () => {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
+      text280: task2Text,
       aiFeatures: mt2.aiFeatures,
       aiScore: mt2.aiScore,
       localAdvanced: mt2.localAdvanced,
@@ -2228,7 +2242,7 @@ document.getElementById("start-rating-button").addEventListener("click", () => {
 function formatTaskId(taskId) {
   switch (taskId) {
     case "MT1_AUTOEXP": return "Microtarea 1 (autoexpresiva)";
-    case "MT2_ESCOLAR": return "Tarea 2 (fotografía creativa del centro educativo)";
+    case "MT2_ESCOLAR": return "Microtarea 2 (reinterpretación escolar)";
     case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
     default: return taskId || "—";
   }
@@ -2283,6 +2297,7 @@ async function loadNextPhotoForExpert() {
     ratingPhotoInfo.textContent =
       `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
+      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
       aiText1 + aiText2 + aiText3;
 
     ratingControls.forEach(rc => {
@@ -2621,6 +2636,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "sessionId",
       "submittedAt",
       "createdAt",
+      "text280",
 
       // Demografía
       "sexo",
@@ -2757,6 +2773,7 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         p.sessionId || "",
         p.submittedAt || s?.submittedAt || "",
         p.createdAt || "",
+        p.text280 || "",
 
         dem.gender,
         dem.age,
