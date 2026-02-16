@@ -212,7 +212,7 @@ backButtons.forEach(btn => {
     // Asegura que, al volver y acceder de nuevo, no queden datos del alumno anterior
     resetUploaderState({ newParticipant: true });
   });
-
+});
 
 // Al cargar la página, limpia posibles restos de una participación previa en este dispositivo
 window.addEventListener("load", () => {
@@ -222,8 +222,6 @@ window.addEventListener("load", () => {
     console.error(err);
   }
 });
-});
-
 // ---- APLICAR CONFIGURACIÓN ----
 function applyCentersToSelect() {
   if (!centerSelect) return;
@@ -1227,8 +1225,17 @@ document.getElementById("login-button").addEventListener("click", async () => {
   if (role === "uploader") {
     // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
     try { await loadGlobalConfig(true); } catch (_) {}
+
     applyConfigToUpload();
+
+    // Deja el wizard en un estado coherente con la config actual (incluido CBQD).
     resetUploaderState({ newParticipant: true });
+    // Recalcula el orden (por si cbqdEnabled ha cambiado) y fuerza que el paso 2 quede accesible.
+    try {
+      syncCbqdStepVisibility();
+      showWizardStepByIndex(0);
+    } catch (_) {}
+
     showSection("upload");
   } else if (role === "expert") {
     showSection("expert");
@@ -1461,12 +1468,13 @@ function resetUploaderState({ newParticipant = true } = {}) {
     microtaskAiCache.MT3_TRANSFORM = null;
   }
 
-  // Vuelve al paso 1 del wizard
+  // Vuelve al paso 1 del wizard (y sincroniza CBQD con la configuración actual)
   if (typeof showWizardStepByIndex === "function") {
     showWizardStepByIndex(0);
+    try { syncCbqdStepVisibility(); } catch (_) {}
   }
 
-  // Nuevo participante (evita arrastrar identificación entre alumnos)
+// Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
 }
 
