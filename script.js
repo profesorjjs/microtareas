@@ -1176,11 +1176,33 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  const ok = await ensureConfigLoaded();
+  // IMPORTANTE:
+  // La configuración (incluido CBQD) puede cambiar desde el panel admin.
+  // Si el alumnado ya tenía la página abierta, ensureConfigLoaded() no volvería a
+  // consultar Firestore y se quedaría con valores antiguos.
+  // Por eso, en cada intento de login recargamos SIEMPRE la configuración.
+  let ok = false;
+  try {
+    ok = await loadGlobalConfig();
+  } catch (_) {
+    ok = false;
+  }
+
   // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
   if (!ok) {
-    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+    try {
+      await sleep(200);
+      ok = await loadGlobalConfig();
+    } catch (_) {
+      ok = false;
+    }
   }
+
+  // Marca la configuración como cargada para el resto del flujo.
+  _configLoaded = true;
+  _configOk = ok;
+  _configLoadPromise = null;
+
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
 
