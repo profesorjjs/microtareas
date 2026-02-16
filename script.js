@@ -11,7 +11,6 @@ import {
   where,
   doc,
   getDoc,
-  getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc
@@ -136,8 +135,8 @@ async function ensureConfigLoaded() {
   if (_configLoadPromise) return _configLoadPromise;
 
   _configLoadPromise = (async () => {
-    _configOk = await loadGlobalConfig(true);
-_configLoaded = true;
+    _configOk = await loadGlobalConfig();
+    _configLoaded = true;
     return _configOk;
   })();
 
@@ -442,21 +441,9 @@ function mergeDeepAIConfig(dataDeep) {
   return base;
 }
 
-// Carga configuración desde Firestore.
-// Si forceServer=true, intentará evitar valores obsoletos usando lectura desde servidor.
-async function loadGlobalConfig(forceServer = false) {
+async function loadGlobalConfig() {
   try {
-    let snap;
-    if (forceServer) {
-      try {
-        snap = await getDocFromServer(configDocRef);
-      } catch (e) {
-        // Si no hay red / el SDK no puede ir al servidor, cae a lectura normal.
-        snap = await getDoc(configDocRef);
-      }
-    } else {
-      snap = await getDoc(configDocRef);
-    }
+    const snap = await getDoc(configDocRef);
     if (snap.exists()) {
       const data = snap.data();
       globalConfig.askCenter = !!data.askCenter;
@@ -1189,17 +1176,10 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  // 1) Asegura que existe configuración mínima (y cache de auth si Firestore falla)
   const ok = await ensureConfigLoaded();
-  // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
-  //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
-  try {
-    await loadGlobalConfig(true);
-  } catch (err) {
-    // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
-    if (!ok) {
-      try { await sleep(200); await loadGlobalConfig(true); } catch (_) {}
-    }
+  // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
+  if (!ok) {
+    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
   }
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
@@ -1225,9 +1205,6 @@ document.getElementById("login-button").addEventListener("click", async () => {
   loginSection.classList.add("hidden");
 
   if (role === "uploader") {
-    // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
-    try { await loadGlobalConfig(true); } catch (_) {}
-    applyConfigToUpload();
     resetUploaderState({ newParticipant: true });
     showSection("upload");
   } else if (role === "expert") {
@@ -1241,7 +1218,6 @@ document.getElementById("login-button").addEventListener("click", async () => {
 // ----- CBQD (ADMIN): activar/desactivar + configurar ítems -----
 if (cbqdEnabledToggle) {
   cbqdEnabledToggle.addEventListener("change", async () => {
-    const prev = !!globalConfig.cbqdEnabled;
     globalConfig.cbqdEnabled = !!cbqdEnabledToggle.checked;
     try {
       const snap = await getDoc(configDocRef);
@@ -1261,16 +1237,11 @@ if (cbqdEnabledToggle) {
       } else {
         await updateDoc(configDocRef, payload);
       }
-
-      // Verificación inmediata (evita la sensación de "lo marco pero no hace nada")
-      await loadGlobalConfig(true);
-      applyConfigToAdmin();
     } catch (err) {
       console.error("Error guardando cbqdEnabled:", err);
       alert("No se ha podido guardar el estado del CBQD.");
-      // revertir estado y visualmente
-      globalConfig.cbqdEnabled = prev;
-      cbqdEnabledToggle.checked = prev;
+      // revertir visualmente
+      cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
     }
   });
 }
@@ -1310,9 +1281,6 @@ if (saveCbqdItemsButton) {
         await updateDoc(configDocRef, payload);
       }
 
-      await loadGlobalConfig(true);
-      applyConfigToAdmin();
-
       alert("CBQD actualizado.");
     } catch (err) {
       console.error("Error guardando CBQD:", err);
@@ -1337,47 +1305,10 @@ const wizardBack4 = document.getElementById("wizard-back-4");
 const wizardBack5 = document.getElementById("wizard-back-5");
 const submitAllBtn = document.getElementById("submit-all");
 
-// ===== UX de envío (anti-doble clic + progreso) =====
-function setSubmitUi({ submitting = false, label = null, message = null, kind = "note" } = {}) {
-  const btn = document.getElementById("submit-all");
-  const box = document.getElementById("wizard-message");
-  if (btn) {
-    btn.disabled = !!submitting;
-    btn.textContent = label ?? (submitting ? "Enviando…" : "Enviar todo");
-  }
-  if (box && message !== null) {
-    box.className = `message ${kind}`.trim();
-    box.textContent = message;
-  }
-}
-
-function setSubmitProgress(step, total, message) {
-  const safeTotal = Math.max(1, Number(total) || 1);
-  const safeStep = Math.max(0, Math.min(Number(step) || 0, safeTotal));
-  setSubmitUi({
-    submitting: true,
-    label: `Enviando… (${safeStep}/${safeTotal})`,
-    message: message ?? "Enviando…",
-    kind: "note"
-  });
-}
-
-
 const cbqdDisabledBox = document.getElementById("cbqd-disabled");
 const cbqdWarningBox = document.getElementById("cbqd-warning");
 const cbqdItemsHost = document.getElementById("cbqd-items");
 const cbqdScoreBox = document.getElementById("cbqd-scorebox");
-
-// Paso 2 (CBQD) en el wizard: lo mostramos/ocultamos según configuración.
-// El wizard controla la visibilidad real; esto evita que el paso quede “anclado”
-// por estados previos o por cambios en caliente desde el panel admin.
-const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
-
-function syncCbqdStepVisibility() {
-  if (!cbqdStepEl) return;
-  if (globalConfig.cbqdEnabled) cbqdStepEl.classList.remove("hidden");
-  else cbqdStepEl.classList.add("hidden");
-}
 
 function computeWizardOrder() {
   // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
@@ -1391,9 +1322,6 @@ let wizardOrder = computeWizardOrder();
 let wizardIdx = 0;
 
 function showWizardStepByIndex(idx) {
-  // Asegura que el DOM refleja el estado del CBQD antes de computar el orden.
-  syncCbqdStepVisibility();
-
   wizardOrder = computeWizardOrder();
   wizardIdx = Math.min(Math.max(idx, 0), wizardOrder.length - 1);
 
@@ -1489,10 +1417,7 @@ function resetUploaderState({ newParticipant = true } = {}) {
 
   // Vuelve al paso 1 del wizard
   if (typeof showWizardStepByIndex === "function") {
-    // Si el CBQD está activado, mostramos el paso 2 al entrar como alumnado.
-    // El paso 1 sigue estando accesible con el botón "Atrás".
-    const startIdx = (globalConfig && globalConfig.cbqdEnabled) ? 1 : 0;
-    showWizardStepByIndex(startIdx);
+    showWizardStepByIndex(0);
   }
 
   // Nuevo participante (evita arrastrar identificación entre alumnos)
@@ -1705,6 +1630,8 @@ function updateCbqdScores() {
   }
 }
 
+// (Antes existía un textarea en la tarea 2 con contador de caracteres. Ya no aplica.)
+
 // ==================================================
 // Análisis automático (IA) para microtareas (preview)
 // ==================================================
@@ -1841,14 +1768,9 @@ wireMicrotaskAi("MT2_ESCOLAR", "task2-photo", "task2");
 wireMicrotaskAi("MT3_TRANSFORM", "task3-output", "task3");
 
 // Navegación (validando por pasos)
-wizardNext?.addEventListener("click", async () => {
+wizardNext?.addEventListener("click", () => {
   const step1Form = document.getElementById("step1-form");
   if (step1Form && !step1Form.reportValidity()) return;
-
-  // Refresca la config justo antes de calcular el siguiente paso.
-  // Así, si el CBQD se activa/desactiva en admin, el alumnado ve el paso 2 al instante.
-  try { await loadGlobalConfig(true); } catch (_) {}
-
   showWizardStepByIndex(wizardIdx + 1);
 });
 
@@ -1876,15 +1798,14 @@ wizardNext4?.addEventListener("click", () => {
 });
 
 submitAllBtn?.addEventListener("click", async () => {
-  if (window.__sendingAll) return; // anti-doble clic
-  window.__sendingAll = true;
-
-  setSubmitUi({ submitting: true, label: "Enviando…", message: "Preparando el envío. Por favor, espera…", kind: "note" });
+  const msg = document.getElementById("wizard-message");
+  if (msg) {
+    msg.textContent = "";
+    msg.className = "message";
+  }
 
   try {
-    setSubmitProgress(1, 6, "Validando datos…");
     await ensureConfigLoaded();
-
     const step1Form = document.getElementById("step1-form");
     const t1 = document.getElementById("task1-form");
     const t2 = document.getElementById("task2-form");
@@ -1935,8 +1856,6 @@ submitAllBtn?.addEventListener("click", async () => {
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
 
-    setSubmitProgress(2, 6, "Procesando imágenes…");
-
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
     async function getOrAnalyze(taskId, file) {
@@ -1956,9 +1875,9 @@ submitAllBtn?.addEventListener("click", async () => {
       getOrAnalyze("MT3_TRANSFORM", f3)
     ]);
 
-    setSubmitProgress(3, 6, "Guardando datos del cuestionario y la sesión…");
-
     // Guardar PARTICIPANT (identificador persistente) + SESIÓN (una participación concreta).
+    // - participants: mínimo para poder unir y auditar.
+    // - sessions: snapshot completo (demografía + CBQD) para análisis científico.
     const participantRef = doc(db, "participants", participantId);
     const pSnap = await getDoc(participantRef);
     const firstSeenAt = (pSnap.exists() && pSnap.data()?.firstSeenAt) ? pSnap.data().firstSeenAt : submittedAt;
@@ -2013,6 +1932,7 @@ submitAllBtn?.addEventListener("click", async () => {
       taskSource: "wizard",
 
       // Snapshot mínimo en la foto para no romper la interfaz de expertos ni gráficas rápidas.
+      // El 'canon' para análisis está en sessions.demographics.
       age: ageValue,
       gender,
       studies,
@@ -2035,7 +1955,6 @@ submitAllBtn?.addEventListener("click", async () => {
       cbqdResponses: cbqdResponses
     };
 
-    setSubmitProgress(4, 6, "Subiendo fotografías (1/3)…");
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT1_AUTOEXP",
@@ -2046,7 +1965,6 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt1.deepAI
     });
 
-    setSubmitProgress(5, 6, "Subiendo fotografías (2/3)…");
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
@@ -2057,7 +1975,6 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt2.deepAI
     });
 
-    setSubmitProgress(6, 6, "Subiendo fotografías (3/3)…");
     await addDoc(photosCol, {
       ...commonMeta,
       taskId: "MT3_TRANSFORM",
@@ -2068,20 +1985,23 @@ submitAllBtn?.addEventListener("click", async () => {
       deepAI: mt3.deepAI
     });
 
-    setSubmitUi({ submitting: false, label: "Enviar todo", message: "¡Enviado! Muchas gracias por participar. ✅", kind: "success" });
+    if (msg) {
+      msg.className = "message success";
+      msg.textContent = "¡Enviado! Muchas gracias por participar.";
+    }
 
-    // Preparar el dispositivo para un nuevo alumno
+    // Preparar el dispositivo para un nuevo alumno (sin arrastrar identificación ni respuestas)
     clearParticipantId();
     microtaskAiCache = {};
 
   } catch (err) {
     console.error(err);
-    setSubmitUi({ submitting: false, label: "Enviar todo", message: (err?.message || "Ha ocurrido un error al enviar."), kind: "error" });
-  } finally {
-    window.__sendingAll = false;
+    if (msg) {
+      msg.className = "message error";
+      msg.textContent = err?.message || "Ha ocurrido un error al enviar.";
+    }
   }
 });
-
 
 
 // ----- SUBIDA DE FOTOGRAFÍA (FIRESTORE + IA) -----
@@ -2354,7 +2274,6 @@ async function loadNextPhotoForExpert() {
     ratingPhotoInfo.textContent =
       `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
-      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
       aiText1 + aiText2 + aiText3;
 
     ratingControls.forEach(rc => {
@@ -2693,7 +2612,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       "sessionId",
       "submittedAt",
       "createdAt",
-      "text280",
 
       // Demografía
       "sexo",
@@ -2830,7 +2748,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
         p.sessionId || "",
         p.submittedAt || s?.submittedAt || "",
         p.createdAt || "",
-        p.text280 || "",
 
         dem.gender,
         dem.age,
