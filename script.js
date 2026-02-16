@@ -11,6 +11,7 @@ import {
   where,
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc
@@ -441,9 +442,21 @@ function mergeDeepAIConfig(dataDeep) {
   return base;
 }
 
-async function loadGlobalConfig() {
+// Carga configuración desde Firestore.
+// Si forceServer=true, intentará evitar valores obsoletos usando lectura desde servidor.
+async function loadGlobalConfig(forceServer = false) {
   try {
-    const snap = await getDoc(configDocRef);
+    let snap;
+    if (forceServer) {
+      try {
+        snap = await getDocFromServer(configDocRef);
+      } catch (e) {
+        // Si no hay red / el SDK no puede ir al servidor, cae a lectura normal.
+        snap = await getDoc(configDocRef);
+      }
+    } else {
+      snap = await getDoc(configDocRef);
+    }
     if (snap.exists()) {
       const data = snap.data();
       globalConfig.askCenter = !!data.askCenter;
@@ -1213,7 +1226,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
 
   if (role === "uploader") {
     // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
-    try { await loadGlobalConfig(); } catch (_) {}
+    try { await loadGlobalConfig(true); } catch (_) {}
     applyConfigToUpload();
     resetUploaderState({ newParticipant: true });
     showSection("upload");
@@ -1228,6 +1241,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
 // ----- CBQD (ADMIN): activar/desactivar + configurar ítems -----
 if (cbqdEnabledToggle) {
   cbqdEnabledToggle.addEventListener("change", async () => {
+    const prev = !!globalConfig.cbqdEnabled;
     globalConfig.cbqdEnabled = !!cbqdEnabledToggle.checked;
     try {
       const snap = await getDoc(configDocRef);
@@ -1247,11 +1261,16 @@ if (cbqdEnabledToggle) {
       } else {
         await updateDoc(configDocRef, payload);
       }
+
+      // Verificación inmediata (evita la sensación de "lo marco pero no hace nada")
+      await loadGlobalConfig(true);
+      applyConfigToAdmin();
     } catch (err) {
       console.error("Error guardando cbqdEnabled:", err);
       alert("No se ha podido guardar el estado del CBQD.");
-      // revertir visualmente
-      cbqdEnabledToggle.checked = !!globalConfig.cbqdEnabled;
+      // revertir estado y visualmente
+      globalConfig.cbqdEnabled = prev;
+      cbqdEnabledToggle.checked = prev;
     }
   });
 }
@@ -1290,6 +1309,9 @@ if (saveCbqdItemsButton) {
       } else {
         await updateDoc(configDocRef, payload);
       }
+
+      await loadGlobalConfig(true);
+      applyConfigToAdmin();
 
       alert("CBQD actualizado.");
     } catch (err) {
@@ -1789,7 +1811,7 @@ wizardNext?.addEventListener("click", async () => {
 
   // Refresca la config justo antes de calcular el siguiente paso.
   // Así, si el CBQD se activa/desactiva en admin, el alumnado ve el paso 2 al instante.
-  try { await loadGlobalConfig(); } catch (_) {}
+  try { await loadGlobalConfig(true); } catch (_) {}
 
   showWizardStepByIndex(wizardIdx + 1);
 });
