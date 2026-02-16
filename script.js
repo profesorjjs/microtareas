@@ -1194,11 +1194,11 @@ document.getElementById("login-button").addEventListener("click", async () => {
   // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
   //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
   try {
-    await loadGlobalConfig();
+    await loadGlobalConfig(true);
   } catch (err) {
     // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
     if (!ok) {
-      try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+      try { await sleep(200); await loadGlobalConfig(true); } catch (_) {}
     }
   }
   const role = document.getElementById("role-select").value;
