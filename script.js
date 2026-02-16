@@ -1463,7 +1463,10 @@ function resetUploaderState({ newParticipant = true } = {}) {
 
   // Vuelve al paso 1 del wizard
   if (typeof showWizardStepByIndex === "function") {
-    showWizardStepByIndex(0);
+    // Si el CBQD está activado, mostramos el paso 2 al entrar como alumnado.
+    // El paso 1 sigue estando accesible con el botón "Atrás".
+    const startIdx = (globalConfig && globalConfig.cbqdEnabled) ? 1 : 0;
+    showWizardStepByIndex(startIdx);
   }
 
   // Nuevo participante (evita arrastrar identificación entre alumnos)
