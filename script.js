@@ -136,8 +136,8 @@ async function ensureConfigLoaded() {
   if (_configLoadPromise) return _configLoadPromise;
 
   _configLoadPromise = (async () => {
-    _configOk = await loadGlobalConfig();
-    _configLoaded = true;
+    _configOk = await loadGlobalConfig(true);
+_configLoaded = true;
     return _configOk;
   })();
 
@@ -1194,11 +1194,11 @@ document.getElementById("login-button").addEventListener("click", async () => {
   // 2) Intenta SIEMPRE refrescar la configuración real desde Firestore.
   //    Esto es clave para que cambios recientes (p. ej., cbqdEnabled) se reflejen al entrar como alumnado.
   try {
-    await loadGlobalConfig();
+    await loadGlobalConfig(true);
   } catch (err) {
     // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
     if (!ok) {
-      try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+      try { await sleep(200); await loadGlobalConfig(true); } catch (_) {}
     }
   }
   const role = document.getElementById("role-select").value;
@@ -1679,12 +1679,8 @@ function updateCbqdScores() {
   }
 }
 
-// contador microtarea 2
-const task2TextArea = document.getElementById("task2-text");
-task2TextArea?.addEventListener("input", () => {
-  const c = document.getElementById("task2-count");
-  if (c) c.textContent = String(task2TextArea.value.length);
-});
+// (Microtarea 2) Ya no existe cuadro de texto, solo subida de imagen.
+// Evitamos cualquier referencia a elementos eliminados (task2-text / task2-count).
 
 // ==================================================
 // Análisis automático (IA) para microtareas (preview)
@@ -1912,10 +1908,8 @@ submitAllBtn?.addEventListener("click", async () => {
     const f1 = document.getElementById("task1-photo")?.files?.[0];
     const f2 = document.getElementById("task2-photo")?.files?.[0];
     const f3 = document.getElementById("task3-output")?.files?.[0];
-    const task2Text = (document.getElementById("task2-text")?.value || "").trim();
 
     if (!f1 || !f2 || !f3) throw new Error("Faltan archivos de alguna microtarea.");
-    if (!task2Text || task2Text.length > 280) throw new Error("El texto de la microtarea 2 es obligatorio y ≤ 280 caracteres.");
 
     // --- Preparar imágenes y análisis IA (por microtarea) ---
     // Reutiliza el cache si ya se analizó en la vista previa, pero vuelve a calcular si falta.
@@ -2030,7 +2024,6 @@ submitAllBtn?.addEventListener("click", async () => {
       ...commonMeta,
       taskId: "MT2_ESCOLAR",
       dataUrl: mt2.dataUrl,
-      text280: task2Text,
       aiFeatures: mt2.aiFeatures,
       aiScore: mt2.aiScore,
       localAdvanced: mt2.localAdvanced,
