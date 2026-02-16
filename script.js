@@ -1342,6 +1342,17 @@ const cbqdWarningBox = document.getElementById("cbqd-warning");
 const cbqdItemsHost = document.getElementById("cbqd-items");
 const cbqdScoreBox = document.getElementById("cbqd-scorebox");
 
+// Paso 2 (CBQD) en el wizard: lo mostramos/ocultamos según configuración.
+// El wizard controla la visibilidad real; esto evita que el paso quede “anclado”
+// por estados previos o por cambios en caliente desde el panel admin.
+const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
+
+function syncCbqdStepVisibility() {
+  if (!cbqdStepEl) return;
+  if (globalConfig.cbqdEnabled) cbqdStepEl.classList.remove("hidden");
+  else cbqdStepEl.classList.add("hidden");
+}
+
 function computeWizardOrder() {
   // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
   const order = [1];
@@ -1354,6 +1365,9 @@ let wizardOrder = computeWizardOrder();
 let wizardIdx = 0;
 
 function showWizardStepByIndex(idx) {
+  // Asegura que el DOM refleja el estado del CBQD antes de computar el orden.
+  syncCbqdStepVisibility();
+
   wizardOrder = computeWizardOrder();
   wizardIdx = Math.min(Math.max(idx, 0), wizardOrder.length - 1);
 
