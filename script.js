@@ -1337,14 +1337,27 @@ document.getElementById("login-button").addEventListener("click", async () => {
   }
 
   const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
-  let expected = "";
-  if (role === "uploader") expected = auth.uploaderPassword;
-  else if (role === "expert") expected = auth.expertPassword;
-  else if (role === "admin") expected = auth.adminPassword;
 
-  expected = normalizePwd(expected);
+  // Fallbacks: si Firestore falla, hay caché local previa o se guardaron claves vacías,
+  // evitamos el "bloqueo total". Aceptamos la clave vigente (Firestore), la última
+  // cacheada en localStorage y, en último término, la de por defecto.
+  const cachedAuth = loadAuthCache();
+  const authCandidates = [
+    auth,
+    cachedAuth ? mergeAuthConfig(cachedAuth) : null,
+    DEFAULT_AUTH_CONFIG
+  ].filter(Boolean);
 
-  if (password !== expected) {
+  const expectedList = authCandidates
+    .map(a => {
+      if (role === "uploader") return normalizePwd(a.uploaderPassword);
+      if (role === "expert") return normalizePwd(a.expertPassword);
+      if (role === "admin") return normalizePwd(a.adminPassword);
+      return "";
+    })
+    .filter(Boolean);
+
+  if (!expectedList.includes(password)) {
     alert("Clave incorrecta.");
     return;
   }
