@@ -446,6 +446,28 @@ button.secondary:hover {
 }
 
 
+/* ----- Progreso de envío (alumnado) ----- */
+.send-progress {
+  width: 100%;
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.25rem 0 0.6rem;
+}
+
+.send-progress-bar {
+  height: 10px;
+  width: 0%;
+  background: #3949ab;
+  transition: width 180ms ease;
+}
+
+.send-progress-text {
+  font-size: 0.9rem;
+  color: #333;
+}
+
 button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
