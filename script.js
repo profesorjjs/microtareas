@@ -1176,33 +1176,11 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  // IMPORTANTE:
-  // La configuración (incluido CBQD) puede cambiar desde el panel admin.
-  // Si el alumnado ya tenía la página abierta, ensureConfigLoaded() no volvería a
-  // consultar Firestore y se quedaría con valores antiguos.
-  // Por eso, en cada intento de login recargamos SIEMPRE la configuración.
-  let ok = false;
-  try {
-    ok = await loadGlobalConfig();
-  } catch (_) {
-    ok = false;
-  }
-
+  const ok = await ensureConfigLoaded();
   // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
   if (!ok) {
-    try {
-      await sleep(200);
-      ok = await loadGlobalConfig();
-    } catch (_) {
-      ok = false;
-    }
+    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
   }
-
-  // Marca la configuración como cargada para el resto del flujo.
-  _configLoaded = true;
-  _configOk = ok;
-  _configLoadPromise = null;
-
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
 
@@ -1790,9 +1768,18 @@ wireMicrotaskAi("MT2_ESCOLAR", "task2-photo", "task2");
 wireMicrotaskAi("MT3_TRANSFORM", "task3-output", "task3");
 
 // Navegación (validando por pasos)
-wizardNext?.addEventListener("click", () => {
+wizardNext?.addEventListener("click", async () => {
   const step1Form = document.getElementById("step1-form");
   if (step1Form && !step1Form.reportValidity()) return;
+
+  // IMPORTANTE:
+  // Si el CBQD se activa/desactiva desde el panel admin mientras la página ya está abierta,
+  // este botón debe respetar la configuración más reciente.
+  // Forzamos una recarga rápida (si falla, seguimos con la config actual en memoria).
+  try {
+    await loadGlobalConfig();
+  } catch (_) {}
+
   showWizardStepByIndex(wizardIdx + 1);
 });
 
