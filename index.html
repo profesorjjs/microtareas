@@ -262,7 +262,7 @@
 
       <section class="wizard-step hidden" data-step="4">
         <h3>4) Microtarea 2</h3>
-        <p class="note">Microtarea 2 — Reinterpretación creativa<br><br>Haz o sube una fotografía de un objeto cotidiano.<br>Acompaña la imagen con un texto breve (máximo 280 caracteres) en el que imagines un uso distinto al habitual, de manera creativa y original.<br><br>No describas para qué sirve normalmente: piensa en qué podría convertirse, qué otra función podría tener o qué historia alternativa podría esconder.</p>
+        <p class="note">Haz o sube una fotografía de un objeto cotidiano.</p>
         <p class="note">Acompaña la imagen con un texto breve (máximo 280 caracteres) en el que describas un uso del objeto diferente del habitual, de forma creativa.</p>
         <p class="note">No expliques para qué sirve normalmente: imagina y explica para qué podría servir de otra manera.</p>
 
@@ -358,6 +358,7 @@
         <div id="photo-rating-card" class="rating-card hidden">
           <h3>Fotografía a valorar</h3>
           <img id="rating-photo" alt="Fotografía a valorar">
+          <p id="task-label-main" class="note"></p>
           <p id="rating-photo-info"></p>
 
           <div id="rating-text-block" class="hidden">
@@ -373,6 +374,19 @@
           <div id="rating-items-container"></div>
 
           <p class="puntf">PUNTF (media de ítems): <span id="puntf-value">0.0</span></p>
+
+          <div id="text-rating-block" class="text-rating-block hidden">
+            <p id="task-label" class="note"></p>
+
+            <h4>Texto creativo asociado</h4>
+            <blockquote id="rating-text" class="creative-text"></blockquote>
+
+            <h4>Ítems de valoración del texto (1 = muy bajo, 10 = muy alto)</h4>
+            <div id="text-rating-items-container"></div>
+
+            <p class="puntf">PUNTF texto (media de ítems): <span id="puntf-text-value">0.0</span></p>
+          </div>
+
 
           <div class="rating-buttons">
             <button id="save-rating-button">Guardar valoración y siguiente</button>
@@ -555,6 +569,6 @@
   </footer>
 
   <!-- script principal como módulo ES6 -->
-  <script type="module" src="app.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
