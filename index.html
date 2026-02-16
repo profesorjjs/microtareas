@@ -1,549 +1,73 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Evaluación de Creatividad Digital</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="header">
-    <h1>Evaluación de Creatividad Digital</h1>
-    <p class="subtitle">Plataforma para subida y valoración de fotografías en contexto educativo</p>
-  </header>
 
-  <main class="container">
-    <!-- Selección de rol / acceso -->
-    <section id="login-section" class="card">
-      <h2>Acceso</h2>
-      <p>Selecciona tu tipo de acceso e introduce la clave correspondiente.</p>
+<header>
+  <h1>
+    Evaluación de Creatividad Digital
+    <span class="build-tag">(CBQD_FORCE_STEP2_v2)</span>
+  </h1>
+</header>
 
-      <label for="role-select">Soy:</label>
-      <select id="role-select">
-        <option value="">Selecciona una opción</option>
-        <option value="uploader">Alumno/a (Cuestionario CBQD y microtareas creativas)</option>
-        <option value="expert">Experto/a (valorar fotografías)</option>
-        <option value="admin">Investigador/a (gestión de datos)</option>
-      </select>
+<main id="wizard">
 
-      <label for="access-password">Clave de acceso:</label>
-      <input type="password" id="access-password" placeholder="Introduce la clave">
+  <section class="wizard-step" data-step="1">
+    <h2>1) Datos de contexto y consentimiento</h2>
+    <form id="contextForm">
+      <label>
+        Edad:
+        <input type="number" id="age" required />
+      </label>
 
-      <button id="login-button">Entrar</button>
+      <label>
+        Sexo:
+        <select id="gender" required>
+          <option value="">Selecciona</option>
+          <option value="f">Femenino</option>
+          <option value="m">Masculino</option>
+          <option value="o">Otro</option>
+        </select>
+      </label>
 
-      <p class="note">
-        Esta plataforma se utiliza en el marco de un estudio sobre creatividad digital en el ámbito educativo.
-        No compartas las claves con personas no autorizadas.
-      </p>
-    </section>
+      <label class="checkbox">
+        <input type="checkbox" id="consent" required />
+        He leído y acepto el consentimiento informado
+      </label>
 
-    <!-- Sección subida de fotografía -->
-    <section id="upload-section" class="card hidden">
-  <div class="section-top">
-    <h2>Participación del alumnado</h2>
-    <button type="button" class="back-button">Volver al inicio</button>
-  </div>
-  <p>Completa el cuestionario y las microtareas creativas digitales. Duración estimada: 10–12 minutos.</p>
+      <button type="button" id="btnStep1Next">Continuar</button>
+    </form>
+  </section>
 
-  <div id="wizard">
-    <div class="wizard-progress" aria-hidden="true">
-      <div id="wizard-progress-bar" class="wizard-progress-bar"></div>
+  <section class="wizard-step hidden" data-step="2" id="cbqdStep">
+    <h2>2) Cuestionario CBQD</h2>
+
+    <div id="cbqdDisabledNotice" class="notice hidden">
+      El cuestionario CBQD está actualmente desactivado.
     </div>
 
-    <div id="wizard-steps">
-
-      <section class="wizard-step" data-step="1">
-        <h3>1) Datos de contexto y consentimiento</h3>
-        <form id="step1-form">
-<div class="form-group">
-          <label for="age">Edad:</label>
-          <input type="number" id="age" min="10" required>
-        </div>
-
-        <div class="form-group">
-          <label for="gender">Sexo:</label>
-          <select id="gender" required>
-            <option value="">Selecciona</option>
-            <option value="Mujer">Mujer</option>
-            <option value="Hombre">Hombre</option>
-            <option value="No binario">No binario</option>
-            <option value="Prefiero no decirlo">Prefiero no decirlo</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="studies">Estudios actuales:</label>
-          <select id="studies" required>
-            <option value="">Selecciona</option>
-            <option value="ESO">ESO</option>
-            <option value="Bachillerato">Bachillerato</option>
-            <option value="Ciclo formativo">Ciclo formativo</option>
-            <option value="Otros">Otros</option>
-          </select>
-        </div>
-
-        <div class="form-group" id="bach-wrapper" style="display:none;">
-          <label for="bach-type">Modalidad de Bachillerato:</label>
-          <select id="bach-type">
-            <option value="">Selecciona</option>
-            <option value="Ciencias">Ciencias</option>
-            <option value="Humanidades y Ciencias Sociales">Humanidades y Ciencias Sociales</option>
-            <option value="Artes">Artes</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="vocation">Vocación o área de interés (opcional):</label>
-          <input type="text" id="vocation" maxlength="100" placeholder="Ej.: Medicina, Diseño, Ingeniería...">
-        </div>
-
-        <div class="form-group">
-          <label for="studies-father">Estudios del padre:</label>
-          <select id="studies-father" required>
-            <option value="">Selecciona</option>
-            <option value="Universitarios">Universitarios</option>
-            <option value="Medios">ESO / Bachillerato / FP</option>
-            <option value="Primarios">Primarios</option>
-            <option value="Sin titulación reglada">Sin titulación reglada</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="studies-mother">Estudios de la madre:</label>
-          <select id="studies-mother" required>
-            <option value="">Selecciona</option>
-            <option value="Universitarios">Universitarios</option>
-            <option value="Medios">ESO / Bachillerato / FP</option>
-            <option value="Primarios">Primarios</option>
-            <option value="Sin titulación reglada">Sin titulación reglada</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <p>¿Has repetido curso alguna vez?</p>
-          <label><input type="radio" name="rep" value="Sí" required> Sí</label>
-          <label><input type="radio" name="rep" value="No"> No</label>
-        </div>
-
-        <div class="form-group">
-          <p>¿Has suspendido alguna vez una asignatura?</p>
-          <label><input type="radio" name="fail" value="Sí" required> Sí</label>
-          <label><input type="radio" name="fail" value="No"> No</label>
-        </div>
-
-        <div class="form-group">
-          <label for="pcs-home">¿De cuántos ordenadores dispones en casa?</label>
-          <input type="number" id="pcs-home" min="0" required>
-        </div>
-
-        <div class="form-group">
-          <p>¿Dispones de un ordenador o un portátil en tu habitación?</p>
-          <label><input type="radio" name="pc-room" value="Sí" required> Sí</label>
-          <label><input type="radio" name="pc-room" value="No"> No</label>
-        </div>
-
-        <div class="form-group">
-          <label for="pc-frequency">¿Con qué frecuencia utilizas el ordenador?</label>
-          <select id="pc-frequency" required>
-            <option value="">Selecciona</option>
-            <option value="A diario">A diario</option>
-            <option value="2 o más veces a la semana">2 o más veces a la semana</option>
-            <option value="2 veces o menos a la semana">2 veces o menos a la semana</option>
-            <option value="Solo los fines de semana">Solo los fines de semana</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="pc-hours">Número de horas al día que usas el ordenador:</label>
-          <input type="number" id="pc-hours" min="0" max="24" required>
-        </div>
-
-        <div class="form-group" id="center-wrapper" style="display:none;">
-          <label for="center">Centro educativo:</label>
-          <select id="center">
-            <option value="">Selecciona tu centro</option>
-          </select>
-          <p class="note" id="center-note"></p>
-        </div>
-
-        <div class="consent-box">
-          <p><strong>Importante:</strong> No subas fotografías donde se identifique claramente a personas sin su permiso. Las imágenes se utilizarán exclusivamente con fines de investigación educativa.</p>
-
-          <p>Gracias por participar en este test. Te informamos de que este cuestionario cumple con la normativa vigente en materia de protección de datos y que será usado exclusivamente para la docencia y la investigación.</p>
-          <p>Por favor, acepta la política de privacidad:</p>
-
-          <label>
-            <input type="checkbox" id="privacy-ok" required>
-            He leído y acepto la política de privacidad
-          </label>
-        </div>
-          <div class="wizard-nav">
-            <button type="button" id="wizard-next">Continuar</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="wizard-step hidden" data-step="2">
-        <h3>2) Cuestionario CBQD</h3>
-        <p class="cbqd-intro">
-          A continuación, encontrarás algunas preguntas referidas a tu creatividad digital. Lee atentamente cada una de las siguientes preguntas y rodea con un círculo la respuesta que más se aproxima a tu situación.
-        </p>
-
-        <table class="cbqd-legend-table" aria-label="Escala de respuesta CBQD">
-          <tr>
-            <th scope="col">1</th>
-            <th scope="col">2</th>
-            <th scope="col">3</th>
-            <th scope="col">4</th>
-            <th scope="col">5</th>
-          </tr>
-          <tr>
-            <td>Nunca</td>
-            <td>Una vez</td>
-            <td>Dos veces</td>
-            <td>Tres veces</td>
-            <td>4 o más veces</td>
-          </tr>
-        </table>
-
-        <div id="cbqd-disabled" class="message note hidden">
-          El cuestionario CBQD está desactivado en este momento. Puedes continuar directamente con las microtareas.
-        </div>
-
-        <div id="cbqd-warning" class="message error hidden">
-          El CBQD está activado, pero aún no se han configurado ítems en el panel de investigación.
-        </div>
-
-        <form id="cbqd-form" novalidate>
-          <div id="cbqd-items"></div>
-
-          <div class="cbqd-scorebox hidden" id="cbqd-scorebox">
-            <p><strong>Puntuación total:</strong> <span id="cbqd-total">—</span></p>
-            <div id="cbqd-subscales"></div>
-          </div>
-
-          <div class="wizard-nav">
-            <button type="button" class="secondary" id="wizard-back">Atrás</button>
-            <button type="button" id="wizard-next-2">Continuar</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="wizard-step hidden" data-step="3">
-        <h3>3) Microtarea 1 — Fotografía autoexpresiva</h3>
-        <p class="note">Haz una foto que represente un tema cotidiano propuesto (por ejemplo, “mi día a día”) desde una perspectiva personal y original. Evita ediciones complejas.</p>
-
-        <form id="task1-form">
-          <div class="form-group">
-            <label for="task1-photo">Sube tu foto (JPG):</label>
-            <input type="file" id="task1-photo" accept="image/jpeg,image/jpg" required>
-          </div>
-
-          <div id="task1-preview" class="preview hidden" aria-live="polite">
-            <h4>Vista previa</h4>
-            <img id="task1-preview-image" alt="Vista previa microtarea 1">
-            <p id="task1-preview-meta" class="note"></p>
-          </div>
-
-          <div id="task1-ai-analysis" class="ai-analysis hidden" aria-live="polite">
-            <h4>Análisis automático de creatividad</h4>
-            <p><strong>IA ligera (AI_PUNTF):</strong> <span id="task1-ai-light">–</span></p>
-            <p><strong>IA local avanzada (composición):</strong> <span id="task1-ai-local">–</span></p>
-            <p><strong>IA profunda (modelo externo):</strong> <span id="task1-ai-deep">–</span></p>
-            <p id="task1-ai-deep-expl" class="note"></p>
-          </div>
-
-          <div class="wizard-nav">
-            <button type="button" class="secondary" id="wizard-back-3">Atrás</button>
-            <button type="button" id="wizard-next-3">Continuar</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="wizard-step hidden" data-step="4">
-        <h3>4) Microtarea 2 — Reinterpretación creativa escolar</h3>
-        <p class="note">Fotografía un objeto cotidiano y escribe un texto breve (máximo 280 caracteres) reinterpretándolo en clave escolar (científica, histórica o social) de forma creativa.</p>
-
-        <form id="task2-form">
-          <div class="form-group">
-            <label for="task2-photo">Sube tu foto (JPG):</label>
-            <input type="file" id="task2-photo" accept="image/jpeg,image/jpg" required>
-          </div>
-
-          <div id="task2-preview" class="preview hidden" aria-live="polite">
-            <h4>Vista previa</h4>
-            <img id="task2-preview-image" alt="Vista previa microtarea 2">
-            <p id="task2-preview-meta" class="note"></p>
-          </div>
-
-          <div id="task2-ai-analysis" class="ai-analysis hidden" aria-live="polite">
-            <h4>Análisis automático de creatividad</h4>
-            <p><strong>IA ligera (AI_PUNTF):</strong> <span id="task2-ai-light">–</span></p>
-            <p><strong>IA local avanzada (composición):</strong> <span id="task2-ai-local">–</span></p>
-            <p><strong>IA profunda (modelo externo):</strong> <span id="task2-ai-deep">–</span></p>
-            <p id="task2-ai-deep-expl" class="note"></p>
-          </div>
-
-          <div class="form-group">
-            <label for="task2-text">Texto (≤ 280 caracteres):</label>
-            <textarea id="task2-text" rows="3" maxlength="280" required></textarea>
-            <div class="charline"><span id="task2-count">0</span>/280</div>
-          </div>
-
-          <div class="wizard-nav">
-            <button type="button" class="secondary" id="wizard-back-4">Atrás</button>
-            <button type="button" id="wizard-next-4">Continuar</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="wizard-step hidden" data-step="5">
-        <h3>5) Microtarea 3 — Transformación digital básica</h3>
-        <p class="note">Crea una composición sencilla (collage o imagen con texto superpuesto) usando herramientas básicas del móvil. Luego sube el resultado final.</p>
-
-        <form id="task3-form">
-          <div class="form-group">
-            <label for="task3-output">Sube la composición final (JPG):</label>
-            <input type="file" id="task3-output" accept="image/jpeg,image/jpg" required>
-          </div>
-
-          <div id="task3-preview" class="preview hidden" aria-live="polite">
-            <h4>Vista previa</h4>
-            <img id="task3-preview-image" alt="Vista previa microtarea 3">
-            <p id="task3-preview-meta" class="note"></p>
-          </div>
-
-          <div id="task3-ai-analysis" class="ai-analysis hidden" aria-live="polite">
-            <h4>Análisis automático de creatividad</h4>
-            <p><strong>IA ligera (AI_PUNTF):</strong> <span id="task3-ai-light">–</span></p>
-            <p><strong>IA local avanzada (composición):</strong> <span id="task3-ai-local">–</span></p>
-            <p><strong>IA profunda (modelo externo):</strong> <span id="task3-ai-deep">–</span></p>
-            <p id="task3-ai-deep-expl" class="note"></p>
-          </div>
-
-          <div class="wizard-nav">
-            <button type="button" class="secondary" id="wizard-back-5">Atrás</button>
-            <button type="button" id="submit-all">Enviar todo</button>
-          </div>
-        </form>
-
-        <div id="wizard-message" class="message"></div>
-      </section>
-
+    <div id="cbqdEmptyNotice" class="notice hidden">
+      El cuestionario CBQD no tiene ítems configurados.
     </div>
-  </div>
-</section>
 
-    <!-- Sección valoración por expertos -->
-    <section id="expert-section" class="card hidden">
-      <div class="section-top">
-        <h2>Valoración de fotografías</h2>
-        <button type="button" class="back-button">Volver al inicio</button>
-      </div>
+    <form id="cbqdForm"></form>
 
-      <div class="form-group">
-        <label for="expert-id">Tu código de experto/a:</label>
-        <input type="text" id="expert-id" placeholder="Ej.: EXP01" required>
-      </div>
+    <button type="button" id="btnStep2Next">Continuar</button>
+  </section>
 
-      <button id="start-rating-button">Comenzar / Continuar valoración</button>
+  <section class="wizard-step hidden" data-step="3">
+    <h2>3) Microtarea 1</h2>
+    <p>Contenido de la microtarea…</p>
+    <button type="button" class="nextBtn">Continuar</button>
+  </section>
 
-      <div id="rating-area" class="hidden">
-        <div id="no-photos-message" class="message hidden">
-          No hay fotografías pendientes de valorar. Vuelve a intentarlo más tarde.
-        </div>
+</main>
 
-        <div id="photo-rating-card" class="rating-card hidden">
-          <h3>Fotografía a valorar</h3>
-          <img id="rating-photo" alt="Fotografía a valorar">
-          <p id="rating-photo-info"></p>
-
-          <h4>Ítems de valoración (1 = muy bajo, 10 = muy alto)</h4>
-          <div id="rating-items-container"></div>
-
-          <p class="puntf">PUNTF (media de ítems): <span id="puntf-value">0.0</span></p>
-
-          <div class="rating-buttons">
-            <button id="save-rating-button">Guardar valoración y siguiente</button>
-            <button id="skip-photo-button" class="secondary">Omitir fotografía</button>
-          </div>
-
-          <p id="rating-message" class="message"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Sección administración / exportación -->
-    <section id="admin-section" class="card hidden">
-      <div class="section-top">
-        <h2>Panel de investigación</h2>
-        <button type="button" class="back-button">Volver al inicio</button>
-      </div>
-      <p>Desde aquí puedes exportar los datos (CBQD + microtareas con fotografías + valoraciones) en formato CSV para analizarlos estadísticamente.</p>
-
-      <button id="export-csv-button">Descargar CSV</button>
-      <p class="note">El archivo incluirá una fila por combinación fotografía × experto/a (formato “largo”), incorporando también los datos del CBQD y del alumnado vinculados a cada fotografía.</p>
-
-      <h3>Opciones de recogida de datos</h3>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="ask-center-toggle">
-          Solicitar el "Centro educativo" al alumnado en el formulario
-        </label>
-        <p class="note">Puedes activar o desactivar esta opción según las necesidades del estudio.</p>
-      </div>
-
-      <div class="form-group" id="centers-config">
-        <label for="centers-textarea">Centros educativos (uno por línea):</label>
-        <textarea id="centers-textarea" rows="4" placeholder="IES Ejemplo 1&#10;IES Ejemplo 2"></textarea>
-        <button type="button" id="save-centers-button">Guardar lista de centros</button>
-        <p class="note">Estos centros aparecerán en el desplegable del alumnado cuando la opción esté activada.</p>
-      </div>
-
-      
-      <h3>Cuestionario CBQD</h3>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="cbqd-enabled-toggle">
-          Activar el cuestionario CBQD en la participación del alumnado
-        </label>
-        <p class="note">Si lo desactivas, el alumnado realizará únicamente las microtareas.</p>
-      </div>
-
-      <div class="form-group">
-        <label for="cbqd-items-textarea">Ítems CBQD (uno por línea, formato DOMINIO|Ítem):</label>
-        <textarea id="cbqd-items-textarea" rows="7"
-          placeholder="AUTOEXP|Publico contenidos creativos que expresan mi forma de ser...&#10;ESCOLAR|Creo materiales digitales para tareas del instituto...&#10;PROD|Transformo o edito imágenes para crear algo nuevo..."></textarea>
-        <p class="note">El dominio te permite calcular subescalas por ámbitos. Ejemplos: AUTOEXP, ESCOLAR, PROD. El texto del ítem debe corresponder a tu versión validada.</p>
-        <button type="button" id="save-cbqd-items-button">Guardar CBQD</button>
-      </div>
-
-      <h3>Ítems de valoración de fotografías</h3>
-      <div class="form-group">
-        <label for="rating-items-textarea">Ítems (uno por línea):</label>
-        <textarea id="rating-items-textarea" rows="5"
-          placeholder="Originalidad y novedad&#10;Expresión creativa y emocional&#10;Uso innovador de técnicas digitales"></textarea>
-        <button type="button" id="save-rating-items-button">Guardar ítems de valoración</button>
-        <p class="note">Estos ítems se utilizarán en la interfaz de valoración de las fotografías.</p>
-      </div>
-
-      <h3>Claves de acceso</h3>
-      <div class="form-group">
-        <label for="uploader-password-input">Clave para alumnado (subir fotografías):</label>
-        <input type="text" id="uploader-password-input" placeholder="alumno2025">
-      </div>
-      <div class="form-group">
-        <label for="expert-password-input">Clave para expertos/as (valorar fotografías):</label>
-        <input type="text" id="expert-password-input" placeholder="experto2025">
-      </div>
-      <div class="form-group">
-        <label for="admin-password-input">Clave para investigación (panel de administración):</label>
-        <input type="text" id="admin-password-input" placeholder="admin2025">
-      </div>
-      <button type="button" id="save-passwords-button">Guardar claves de acceso</button>
-      <p class="note">
-        Estas claves se usarán en la pantalla de acceso. Si las cambias, avisa al alumnado y a los expertos.
-      </p>
-
-      <h3>Valoración automática (IA ligera)</h3>
-      <div class="form-group">
-        <label>
-          <input type="checkbox" id="ai-enabled-toggle">
-          Activar valoración automática de creatividad (AI_PUNTF)
-        </label>
-        <p class="note">
-          Se calcularán algunos parámetros visuales simples en el navegador (brillo, contraste, color, complejidad)
-          y se combinarán en un índice de 0 a 10.
-        </p>
-      </div>
-
-      <div class="form-group" id="ai-config-block">
-        <table class="ai-config-table">
-          <thead>
-            <tr>
-              <th>Parámetro</th>
-              <th>Usar</th>
-              <th>Peso (0–100)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Brillo global</td>
-              <td class="center-cell">
-                <input type="checkbox" id="ai-brightness-enabled">
-              </td>
-              <td>
-                <input type="number" id="ai-brightness-weight" min="0" max="100" class="small-input">
-              </td>
-            </tr>
-            <tr>
-              <td>Contraste</td>
-              <td class="center-cell">
-                <input type="checkbox" id="ai-contrast-enabled">
-              </td>
-              <td>
-                <input type="number" id="ai-contrast-weight" min="0" max="100" class="small-input">
-              </td>
-            </tr>
-            <tr>
-              <td>Intensidad de color</td>
-              <td class="center-cell">
-                <input type="checkbox" id="ai-colorfulness-enabled">
-              </td>
-              <td>
-                <input type="number" id="ai-colorfulness-weight" min="0" max="100" class="small-input">
-              </td>
-            </tr>
-            <tr>
-              <td>Complejidad (bordes)</td>
-              <td class="center-cell">
-                <input type="checkbox" id="ai-edgedensity-enabled">
-              </td>
-              <td>
-                <input type="number" id="ai-edgedensity-weight" min="0" max="100" class="small-input">
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <button type="button" id="save-ai-config-button">Guardar configuración IA</button>
-        <p class="note">
-          El peso es la importancia relativa de cada parámetro en el índice automático. Solo cuentan los parámetros marcados.
-        </p>
-      </div>
-
-      <h3>Gestión del experimento</h3>
-      <div class="form-group">
-        <button type="button" id="reset-db-button" class="danger-button">
-          Reinicializar base de datos (borrar todas las fotografías y valoraciones)
-        </button>
-        <p class="note">
-          Úsalo solo cuando quieras comenzar un experimento desde cero. No afecta a la configuración (centros, ítems, IA, etc.).
-        </p>
-      </div>
-
-      <h3>Resumen rápido</h3>
-      <ul id="admin-summary-list"></ul>
-
-      <h3>Visualización de datos</h3>
-      <div id="admin-charts">
-        <div class="chart-block">
-          <h4>Distribución de fotografías por edad</h4>
-          <div id="age-chart" class="chart-bar-container"></div>
-          <p class="note" id="age-chart-note"></p>
-        </div>
-      </div>
-
-      <h3>Listado de fotografías y valoraciones</h3>
-      <button id="load-photos-button">Cargar fotografías y valoraciones</button>
-      <div id="photos-list" class="photos-list"></div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <p>Plataforma experimental de evaluación de creatividad digital en contextos educativos.</p>
-  </footer>
-
-  <!-- script principal como módulo ES6 -->
-  <script type="module" src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>
