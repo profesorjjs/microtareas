@@ -213,8 +213,7 @@ let ratingControls = [];
 // NUEVO: valoración de texto asociado (microtarea 2)
 const ratingTextBlock = document.getElementById("rating-text-block");
 const ratingTextP = document.getElementById("rating-text");
-const textRatingItemsContainer = document.getElementById("text-rating-items-container");
-const puntfTextSpan = document.getElementById("puntf-text-value");
+// Reutilizamos textRatingItemsContainer y puntfTextSpan (ya declarados arriba)
 let textRatingControls = [];
 
 // Botones "Volver al inicio"
