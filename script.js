@@ -335,7 +335,7 @@ function applyConfigToAdmin() {
   }
 
   // Claves de acceso
-  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+  const auth = (globalConfig && globalConfig.authConfig) ? globalConfig.authConfig : DEFAULT_AUTH_CONFIG;
   if (uploaderPasswordInput) {
     uploaderPasswordInput.value = auth.uploaderPassword || "";
   }
@@ -1338,10 +1338,20 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  const ok = await ensureConfigLoaded();
+  // Carga de configuración con timeout: si Firestore se queda colgado (bloqueos, red, Safari),
+  // no bloqueamos el login y usamos configuración por defecto / caché.
+  let ok = false;
+  try {
+    ok = await Promise.race([
+      ensureConfigLoaded(),
+      sleep(1500).then(() => false)
+    ]);
+  } catch (e) {
+    ok = false;
+  }
   // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
   if (!ok) {
-    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
+    try { await sleep(200); await Promise.race([loadGlobalConfig(), sleep(1200)]); } catch (_) {}
   }
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
@@ -1351,7 +1361,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
     return;
   }
 
-  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
+  const auth = (globalConfig && globalConfig.authConfig) ? globalConfig.authConfig : DEFAULT_AUTH_CONFIG;
   let expected = "";
   if (role === "uploader") expected = auth.uploaderPassword;
   else if (role === "expert") expected = auth.expertPassword;
