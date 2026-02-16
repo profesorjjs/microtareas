@@ -2,6 +2,7 @@
 
 // ----- IMPORTS DE FIREBASE DESDE CDN -----
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 import {
   getFirestore,
   collection,

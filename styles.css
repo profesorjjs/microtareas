@@ -444,3 +444,12 @@ button.secondary:hover {
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
 }
+
+
+/* CBQD: resaltar ítems pendientes (si falta alguna respuesta) */
+.cbqd-item.cbqd-missing {
+  outline: 2px solid #b00020;
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+.cbqd-item.cbqd-missing p { color: #b00020; }
