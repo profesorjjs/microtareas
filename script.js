@@ -46,16 +46,6 @@ const DEFAULT_RATING_ITEMS = [
 ];
 
 
-// Ítems por defecto para valorar el texto creativo (independientes de la fotografía)
-const DEFAULT_TEXT_RATING_ITEMS = [
-  { id: "titem1", label: "Originalidad de la idea" },
-  { id: "titem2", label: "Reinterpretación del objeto" },
-  { id: "titem3", label: "Coherencia interna" },
-  { id: "titem4", label: "Potencia expresiva" }
-];
-
-
-
 // CBQD (cuestionario) por defecto
 const DEFAULT_CBQD_ENABLED = true;
 // Por defecto no incluimos ítems: deben configurarse en el panel de investigación con la versión validada que uses.
@@ -126,7 +116,6 @@ let globalConfig = {
   askCenter: false,
   centers: [],
   ratingItems: DEFAULT_RATING_ITEMS,
-  textRatingItems: DEFAULT_TEXT_RATING_ITEMS,
   aiConfig: DEFAULT_AI_CONFIG,
   authConfig: DEFAULT_AUTH_CONFIG,
   deepAI: DEEP_AI_CONFIG,
@@ -169,8 +158,6 @@ const centersTextarea = document.getElementById("centers-textarea");
 const saveCentersButton = document.getElementById("save-centers-button");
 const ratingItemsTextarea = document.getElementById("rating-items-textarea");
 const saveRatingItemsButton = document.getElementById("save-rating-items-button");
-const textRatingItemsTextarea = document.getElementById("text-rating-items-textarea");
-const saveTextRatingItemsButton = document.getElementById("save-text-rating-items-button");
 const resetDbButton = document.getElementById("reset-db-button");
 const studiesSelect = document.getElementById("studies");
 const bachWrapper = document.getElementById("bach-wrapper");
@@ -204,20 +191,8 @@ const savePasswordsButton = document.getElementById("save-passwords-button");
 
 // Rating dinámico (expertos)
 const ratingItemsContainer = document.getElementById("rating-items-container");
-const textRatingBlock = document.getElementById("text-rating-block");
-const taskLabelEl = document.getElementById("task-label");
-const ratingTextEl = document.getElementById("rating-text");
-const textRatingItemsContainer = document.getElementById("text-rating-items-container");
-const puntfTextSpan = document.getElementById("puntf-text-value");
-
 const puntfSpan = document.getElementById("puntf-value");
 let ratingControls = [];
-
-// NUEVO: valoración de texto asociado (microtarea 2)
-const ratingTextBlock = document.getElementById("rating-text-block");
-const ratingTextP = document.getElementById("rating-text");
-// Reutilizamos textRatingItemsContainer y puntfTextSpan (ya declarados arriba)
-let textRatingControls = [];
 
 // Botones "Volver al inicio"
 const backButtons = document.querySelectorAll(".back-button");
@@ -330,12 +305,9 @@ function applyConfigToAdmin() {
   if (ratingItemsTextarea) {
     ratingItemsTextarea.value = (globalConfig.ratingItems || []).map(i => i.label).join("\n");
   }
-  if (textRatingItemsTextarea) {
-    textRatingItemsTextarea.value = (globalConfig.textRatingItems || []).map(i => i.label).join("\n");
-  }
 
   // Claves de acceso
-  const auth = (globalConfig && globalConfig.authConfig) ? globalConfig.authConfig : DEFAULT_AUTH_CONFIG;
+  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
   if (uploaderPasswordInput) {
     uploaderPasswordInput.value = auth.uploaderPassword || "";
   }
@@ -406,62 +378,6 @@ function buildRatingControls() {
   });
 
   updatePuntf();
-
-  // Controles del texto se construyen de forma independiente
-}
-
-function buildTextRatingControlsFromConfig() {
-  const items = globalConfig.textRatingItems && globalConfig.textRatingItems.length
-    ? globalConfig.textRatingItems
-    : DEFAULT_TEXT_RATING_ITEMS;
-  buildTextRatingControls(items);
-}
-
-
-function buildTextRatingControls(items) {
-  if (!textRatingItemsContainer) return;
-
-  textRatingItemsContainer.innerHTML = "";
-  textRatingControls = [];
-
-  (items || []).forEach((item, index) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "rating-item";
-
-    const labelEl = document.createElement("label");
-    const inputId = `text-rating-item-${item.id}`;
-    labelEl.setAttribute("for", inputId);
-    labelEl.textContent = `${index + 1}. ${item.label}`;
-
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = "1";
-    input.max = "10";
-    input.value = "5";
-    input.id = inputId;
-
-    const valueSpan = document.createElement("span");
-    valueSpan.textContent = "5";
-
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(input);
-    wrapper.appendChild(valueSpan);
-
-    input.addEventListener("input", () => {
-      valueSpan.textContent = input.value;
-      updatePuntfText();
-    });
-
-    textRatingItemsContainer.appendChild(wrapper);
-
-    textRatingControls.push({
-      config: item,
-      input,
-      valueSpan
-    });
-  });
-
-  updatePuntfText();
 }
 
 function updatePuntf() {
@@ -476,21 +392,6 @@ function updatePuntf() {
   const avg = sum / ratingControls.length;
   if (puntfSpan) {
     puntfSpan.textContent = avg.toFixed(1);
-  }
-}
-
-function updatePuntfText() {
-  if (!textRatingControls.length) {
-    if (puntfTextSpan) puntfTextSpan.textContent = "0.0";
-    return;
-  }
-  const sum = textRatingControls.reduce(
-    (acc, rc) => acc + Number(rc.input.value || 0),
-    0
-  );
-  const avg = sum / textRatingControls.length;
-  if (puntfTextSpan) {
-    puntfTextSpan.textContent = avg.toFixed(1);
   }
 }
 
@@ -555,14 +456,6 @@ async function loadGlobalConfig() {
       } else {
         globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
       }
-      if (Array.isArray(data.textRatingItems) && data.textRatingItems.length > 0) {
-        globalConfig.textRatingItems = data.textRatingItems.map((it, idx) => ({
-          id: it.id || `titem${idx + 1}`,
-          label: it.label || `Ítem texto ${idx + 1}`
-        }));
-      } else {
-        globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
-      }
       globalConfig.aiConfig = mergeAiConfig(data.aiConfig);
       globalConfig.authConfig = mergeAuthConfig(data.authConfig);
       globalConfig.deepAI = mergeDeepAIConfig(data.deepAI);
@@ -575,7 +468,6 @@ async function loadGlobalConfig() {
       globalConfig.askCenter = false;
       globalConfig.centers = [];
       globalConfig.ratingItems = DEFAULT_RATING_ITEMS;
-      globalConfig.textRatingItems = DEFAULT_TEXT_RATING_ITEMS;
       globalConfig.aiConfig = DEFAULT_AI_CONFIG;
       globalConfig.authConfig = DEFAULT_AUTH_CONFIG;
       globalConfig.deepAI = DEEP_AI_CONFIG;
@@ -602,7 +494,6 @@ async function loadGlobalConfig() {
       applyConfigToUpload();
       applyConfigToAdmin();
       buildRatingControls();
-      buildTextRatingControlsFromConfig();
       return false;
     }
 
@@ -610,14 +501,12 @@ async function loadGlobalConfig() {
     applyConfigToUpload();
     applyConfigToAdmin();
     buildRatingControls();
-    buildTextRatingControlsFromConfig();
     return false;
   }
 
   applyConfigToUpload();
   applyConfigToAdmin();
   buildRatingControls();
-  buildTextRatingControlsFromConfig();
   return true;
 }
 
@@ -650,7 +539,6 @@ if (askCenterToggle) {
       if (!snap.exists()) {
         payload.centers = globalConfig.centers || [];
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
-        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
@@ -683,7 +571,6 @@ if (saveCentersButton) {
       if (!snap.exists()) {
         payload.askCenter = globalConfig.askCenter;
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
-        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
@@ -727,7 +614,6 @@ if (saveRatingItemsButton) {
       if (!snap.exists()) {
         payload.askCenter = globalConfig.askCenter;
         payload.centers = globalConfig.centers || [];
-        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
@@ -739,53 +625,6 @@ if (saveRatingItemsButton) {
     } catch (err) {
       console.error("Error guardando ítems de valoración:", err);
       alert("No se ha podido guardar los ítems de valoración.");
-    }
-  });
-}
-
-
-// Guardar ítems de valoración del texto desde el panel admin
-if (saveTextRatingItemsButton) {
-  saveTextRatingItemsButton.addEventListener("click", async () => {
-    if (!textRatingItemsTextarea) return;
-    const rawLines = textRatingItemsTextarea.value.split("\n");
-    const labels = rawLines.map(l => l.trim()).filter(l => l.length > 0);
-
-    if (!labels.length) {
-      alert("Debes introducir al menos un ítem de valoración del texto.");
-      return;
-    }
-
-    const textRatingItems = labels.map((label, idx) => ({
-      id: `titem${idx + 1}`,
-      label
-    }));
-
-    globalConfig.textRatingItems = textRatingItems;
-    buildTextRatingControlsFromConfig();
-
-    try {
-      const snap = await getDoc(configDocRef);
-      const payload = { textRatingItems };
-      if (!snap.exists()) {
-        // Si no existe el documento, lo creamos completo para no perder coherencia
-        payload.askCenter = globalConfig.askCenter;
-        payload.centers = globalConfig.centers || [];
-        payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
-        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
-        payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
-        payload.authConfig = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
-        payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
-        payload.cbqdEnabled = (globalConfig.cbqdEnabled !== undefined) ? !!globalConfig.cbqdEnabled : DEFAULT_CBQD_ENABLED;
-        payload.cbqdItems = globalConfig.cbqdItems || DEFAULT_CBQD_ITEMS;
-        await setDoc(configDocRef, payload);
-      } else {
-        await updateDoc(configDocRef, payload);
-      }
-      alert("Ítems de valoración del texto actualizados.");
-    } catch (err) {
-      console.error("Error guardando ítems de texto:", err);
-      alert("No se ha podido guardar los ítems de valoración del texto.");
     }
   });
 }
@@ -858,7 +697,6 @@ if (savePasswordsButton) {
         payload.askCenter = globalConfig.askCenter;
         payload.centers = globalConfig.centers || [];
         payload.ratingItems = globalConfig.ratingItems || DEFAULT_RATING_ITEMS;
-        payload.textRatingItems = globalConfig.textRatingItems || DEFAULT_TEXT_RATING_ITEMS;
         payload.aiConfig = globalConfig.aiConfig || DEFAULT_AI_CONFIG;
         payload.deepAI = globalConfig.deepAI || DEEP_AI_CONFIG;
         await setDoc(configDocRef, payload);
@@ -1338,20 +1176,10 @@ function showSection(sectionId) {
 
 // ----- LOGIN / ACCESO POR ROL -----
 document.getElementById("login-button").addEventListener("click", async () => {
-  // Carga de configuración con timeout: si Firestore se queda colgado (bloqueos, red, Safari),
-  // no bloqueamos el login y usamos configuración por defecto / caché.
-  let ok = false;
-  try {
-    ok = await Promise.race([
-      ensureConfigLoaded(),
-      sleep(1500).then(() => false)
-    ]);
-  } catch (e) {
-    ok = false;
-  }
+  const ok = await ensureConfigLoaded();
   // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
   if (!ok) {
-    try { await sleep(200); await Promise.race([loadGlobalConfig(), sleep(1200)]); } catch (_) {}
+    try { await sleep(200); await loadGlobalConfig(); } catch (_) {}
   }
   const role = document.getElementById("role-select").value;
   const password = normalizePwd(document.getElementById("access-password").value);
@@ -1361,7 +1189,7 @@ document.getElementById("login-button").addEventListener("click", async () => {
     return;
   }
 
-  const auth = (globalConfig && globalConfig.authConfig) ? globalConfig.authConfig : DEFAULT_AUTH_CONFIG;
+  const auth = globalConfig.authConfig || DEFAULT_AUTH_CONFIG;
   let expected = "";
   if (role === "uploader") expected = auth.uploaderPassword;
   else if (role === "expert") expected = auth.expertPassword;
@@ -2380,7 +2208,6 @@ const noPhotosMessage = document.getElementById("no-photos-message");
 const photoRatingCard = document.getElementById("photo-rating-card");
 const ratingPhoto = document.getElementById("rating-photo");
 const ratingPhotoInfo = document.getElementById("rating-photo-info");
-const taskLabelMainEl = document.getElementById("task-label-main");
 const ratingMessage = document.getElementById("rating-message");
 
 let currentPhotoForExpert = null;
@@ -2404,74 +2231,6 @@ function formatTaskId(taskId) {
     case "MT3_TRANSFORM": return "Microtarea 3 (transformación)";
     default: return taskId || "—";
   }
-
-
-function getAssociatedText(photo) {
-  // Compatibilidad con datos antiguos o campos alternativos
-  const candidates = [
-    photo?.text280,
-    photo?.text,
-    photo?.task2Text,
-    photo?.texto,
-    photo?.caption
-  ];
-  const txt = candidates.find(v => typeof v === "string" && v.trim().length > 0);
-  return txt ? txt.trim() : "";
-}
-
-let textRatingControls = [];
-function buildTextRatingControls(items) {
-  if (!textRatingItemsContainer) return;
-  textRatingItemsContainer.innerHTML = "";
-  textRatingControls = [];
-
-  (items || DEFAULT_TEXT_RATING_ITEMS).forEach((item, index) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "rating-item";
-
-    const labelEl = document.createElement("label");
-    const inputId = `text-rating-item-${item.id}`;
-    labelEl.setAttribute("for", inputId);
-    labelEl.textContent = `${index + 1}. ${item.label}`;
-
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = "1";
-    input.max = "10";
-    input.value = "5";
-    input.id = inputId;
-
-    const valueSpan = document.createElement("span");
-    valueSpan.textContent = "5";
-
-    wrapper.appendChild(labelEl);
-    wrapper.appendChild(input);
-    wrapper.appendChild(valueSpan);
-
-    input.addEventListener("input", () => {
-      valueSpan.textContent = input.value;
-      updatePuntfText();
-    });
-
-    textRatingItemsContainer.appendChild(wrapper);
-
-    textRatingControls.push({ config: item, input, valueSpan });
-  });
-
-  updatePuntfText();
-}
-
-function updatePuntfText() {
-  if (!puntfTextSpan) return;
-  if (!textRatingControls.length) {
-    puntfTextSpan.textContent = "0.0";
-    return;
-  }
-  const sum = textRatingControls.reduce((acc, rc) => acc + Number(rc.input.value || 0), 0);
-  const avg = sum / textRatingControls.length;
-  puntfTextSpan.textContent = avg.toFixed(1);
-}
-
 }
 
 async function loadNextPhotoForExpert() {
@@ -2510,8 +2269,6 @@ async function loadNextPhotoForExpert() {
     const photo = pending[randomIndex];
     currentPhotoForExpert = photo;
 
-    if (taskLabelMainEl) taskLabelMainEl.textContent = `Microtarea: ${formatTaskId(photo.taskId)}`;
-
     ratingPhoto.src = photo.dataUrl || photo.imageDataUrl || "";
 
     const aiText1 = photo.aiScore != null ? ` | AI_PUNTF: ${photo.aiScore}` : "";
@@ -2525,31 +2282,46 @@ async function loadNextPhotoForExpert() {
     ratingPhotoInfo.textContent =
       `ID: ${photo.id} | Tarea: ${formatTaskId(photo.taskId)} | Edad: ${photo.age} | Sexo: ${photo.gender} | ` +
       `Estudios: ${photo.studies} | Bachillerato: ${photo.bachType || "N/A"}` +
+      (photo.text280 ? ` | Texto: ${photo.text280}` : "") +
       aiText1 + aiText2 + aiText3;
 
-    // Texto asociado (si existe): misma escala, ítems independientes.
-  const associatedText = getAssociatedText(currentPhotoForExpert);
-  const hasText = !!(associatedText && String(associatedText).trim().length > 0);
-  let textRatings = null;
-  let textPuntf = null;
-
-  if (hasText) {
-    if (!textRatingControls.length) {
-      alert("No se han podido cargar los ítems de valoración del texto.");
-      return;
-    }
-
-    textRatings = {};
-    let sumT = 0;
-
-    textRatingControls.forEach(rc => {
-      const v = Number(rc.input.value);
-      sumT += v;
-      textRatings[rc.config.id] = v;
+    ratingControls.forEach(rc => {
+      rc.input.value = 5;
+      rc.valueSpan.textContent = "5";
     });
-
-    textPuntf = sumT / textRatingControls.length;
+    updatePuntf();
+    ratingMessage.textContent = "";
+  } catch (err) {
+    console.error(err);
+    noPhotosMessage.textContent = "Error cargando fotografías.";
+    noPhotosMessage.classList.remove("hidden");
+    photoRatingCard.classList.add("hidden");
   }
+}
+
+// Guardar valoración de experto
+document.getElementById("save-rating-button").addEventListener("click", async () => {
+  if (!currentPhotoForExpert) return;
+
+  const expertId = document.getElementById("expert-id").value.trim();
+  if (!expertId) {
+    alert("Introduce tu código de experto/a.");
+    return;
+  }
+
+  if (!ratingControls.length) {
+    alert("No hay ítems de valoración configurados.");
+    return;
+  }
+
+  const ratingsMap = {};
+  let sum = 0;
+  ratingControls.forEach(rc => {
+    const v = Number(rc.input.value);
+    sum += v;
+    ratingsMap[rc.config.id] = v;
+  });
+  const puntf = sum / ratingControls.length;
 
   try {
     await addDoc(ratingsCol, {
@@ -2557,13 +2329,6 @@ async function loadNextPhotoForExpert() {
       expertId,
       ratings: ratingsMap,
       puntf,
-
-      // Texto (si existe): valoración independiente
-      hasText,
-      text: hasText ? (associatedText || "") : "",
-      textRatings: hasText ? (textRatings || {}) : null,
-      textPuntf: hasText ? textPuntf : null,
-
       createdAt: new Date().toISOString()
     });
 
@@ -2722,7 +2487,6 @@ async function loadAllPhotosWithRatings() {
         Estudios: ${p.studies || ""} | Bachillerato: ${p.bachType || ""}<br>
         Vocación: ${p.vocation || ""}<br>
         Centro: ${p.center || ""}<br>
-        ${p.text280 ? `<strong>Texto (≤280):</strong> ${String(p.text280).replace(/</g, "&lt;").replace(/>/g, "&gt;")}<br>` : ""}
         ${ai1} ${ai2} ${ai3}
       `;
 
@@ -2748,22 +2512,11 @@ async function loadAllPhotosWithRatings() {
         const table = document.createElement("table");
         const thead = document.createElement("thead");
 
-        const hasTextCols = rList.some(r => r?.hasText || r?.textRatings || (typeof r?.textPuntf === "number"));
-
         let headerHtml = "<tr><th>Experto/a</th>";
         items.forEach(item => {
           headerHtml += `<th>${item.label}</th>`;
         });
-        headerHtml += "<th>PUNTF</th>";
-
-        if (hasTextCols) {
-          items.forEach(item => {
-            headerHtml += `<th>Texto: ${item.label}</th>`;
-          });
-          headerHtml += "<th>PUNTF texto</th>";
-        }
-
-        headerHtml += "</tr>";
+        headerHtml += "<th>PUNTF</th></tr>";
         thead.innerHTML = headerHtml;
         table.appendChild(thead);
 
@@ -2782,19 +2535,6 @@ async function loadAllPhotosWithRatings() {
             rowHtml += `<td>${val ?? ""}</td>`;
           });
           rowHtml += `<td>${typeof r.puntf === "number" ? r.puntf.toFixed(2) : ""}</td>`;
-
-          if (hasTextCols) {
-            const tMap = r.textRatings || {};
-            items.forEach((item, idx) => {
-              let val = tMap[item.id];
-              // Compatibilidad extra: por si alguien guardó con subText1...
-              if (val === undefined && r[`subText${idx + 1}`] !== undefined) {
-                val = r[`subText${idx + 1}`];
-              }
-              rowHtml += `<td>${val ?? ""}</td>`;
-            });
-            rowHtml += `<td>${typeof r.textPuntf === "number" ? r.textPuntf.toFixed(2) : ""}</td>`;
-          }
 
           tr.innerHTML = rowHtml;
           tbody.appendChild(tr);
@@ -2931,10 +2671,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
 
     ratingItems.forEach(item => header.push(item.label));
     header.push("puntf");
-
-    // NUEVO: valoración del texto asociado (si existe)
-    ratingItems.forEach(item => header.push(`texto_${item.label}`));
-    header.push("puntf_texto");
 
     const rows = [header];
 
@@ -3078,17 +2814,6 @@ document.getElementById("export-csv-button").addEventListener("click", async () 
       });
 
       base.push(rOrNull && typeof rOrNull.puntf === "number" ? rOrNull.puntf.toFixed(2) : "");
-
-      // Ratings de texto (si existen)
-      const textRatingsMap = rOrNull?.textRatings || {};
-      ratingItems.forEach((item, idx) => {
-        let val = textRatingsMap[item.id];
-        if (val === undefined && rOrNull && rOrNull[`subText${idx + 1}`] !== undefined) {
-          val = rOrNull[`subText${idx + 1}`];
-        }
-        base.push(val ?? "");
-      });
-      base.push(rOrNull && typeof rOrNull.textPuntf === "number" ? rOrNull.textPuntf.toFixed(2) : "");
       return base;
     }
 
