@@ -1348,24 +1348,14 @@ const cbqdScoreBox = document.getElementById("cbqd-scorebox");
 const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
 
 function syncCbqdStepVisibility() {
-  // El paso 2 debe existir siempre; aquí solo adaptamos el contenido interno.
-  const enabled = !!globalConfig.cbqdEnabled;
-  const hasItems = Array.isArray(globalConfig.cbqdItems) && globalConfig.cbqdItems.length > 0;
-
-  // Mensajes
-  if (cbqdDisabledBox) cbqdDisabledBox.classList.toggle("hidden", enabled);
-  if (cbqdWarningBox) cbqdWarningBox.classList.toggle("hidden", !enabled || hasItems);
-
-  // Contenido del formulario (ítems + scorebox). Los botones del wizard siguen disponibles.
-  if (cbqdItemsHost) cbqdItemsHost.style.display = (enabled && hasItems) ? "block" : "none";
-  if (cbqdScoreBox) cbqdScoreBox.classList.toggle("hidden", !(enabled && hasItems));
+  // El paso 2 existe siempre. Su contenido informa si el CBQD está desactivado.
+  if (!cbqdStepEl) return;
+  cbqdStepEl.classList.remove("hidden");
 }
 
-
 function computeWizardOrder() {
-  // Los pasos 1..5 siempre existen. Mantener el paso 2 (CBQD) en el flujo
-  // evita que el alumnado “pierda” el cuestionario por una configuración desactivada
-  // o por lecturas inconsistentes de configuración.
+  // Mantén el paso 2 (CBQD) siempre en el flujo del alumnado.
+  // Si está desactivado o no hay ítems, se mostrará un aviso en el propio paso.
   return [1, 2, 3, 4, 5];
 }
 
@@ -1388,18 +1378,24 @@ function showWizardStepByIndex(idx) {
   const pct = (wizardIdx / (wizardOrder.length - 1)) * 100;
   if (wizardProgressBar) wizardProgressBar.style.width = `${isFinite(pct) ? pct : 0}%`;
 
-  // Estado CBQD (paso 2): renderiza ítems solo si procede y ajusta avisos.
+  // estado CBQD (informativo)
   if (stepNumber === 2) {
-    const enabled = !!globalConfig.cbqdEnabled;
     const items = globalConfig.cbqdItems || [];
-    const hasItems = Array.isArray(items) && items.length > 0;
-
-    syncCbqdStepVisibility();
-
-    if (enabled && hasItems) {
-      renderCbqd();
-    } else {
+    if (!globalConfig.cbqdEnabled) {
+      cbqdDisabledBox?.classList.remove("hidden");
+      cbqdWarningBox?.classList.add("hidden");
+      cbqdScoreBox?.classList.add("hidden");
       if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
+    } else if (!items.length) {
+      cbqdDisabledBox?.classList.add("hidden");
+      cbqdWarningBox?.classList.remove("hidden");
+      cbqdScoreBox?.classList.add("hidden");
+      if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
+    } else {
+      cbqdDisabledBox?.classList.add("hidden");
+      cbqdWarningBox?.classList.add("hidden");
+      cbqdScoreBox?.classList.remove("hidden");
+      renderCbqd();
     }
   }
 }
@@ -1839,16 +1835,11 @@ wizardBack4?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1
 wizardBack5?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
 
 wizardNext2?.addEventListener("click", () => {
-  // Si el CBQD está activado *y* hay ítems configurados, exigimos que esté completo.
-  // Si está desactivado o no hay ítems, permitimos continuar (y ya mostramos el aviso correspondiente).
-  const enabled = !!globalConfig.cbqdEnabled;
-  const hasItems = Array.isArray(globalConfig.cbqdItems) && globalConfig.cbqdItems.length > 0;
-
-  if (enabled && hasItems) {
-    if (!validateCbqdComplete({ focusFirstMissing: true })) return;
-  }
+  // Si CBQD está activo, no se puede avanzar hasta completarlo.
+  if (!validateCbqdComplete({ focusFirstMissing: true })) return;
   showWizardStepByIndex(wizardIdx + 1);
 });
+
 wizardNext3?.addEventListener("click", () => {
   const t1 = document.getElementById("task1-form");
   if (t1 && !t1.reportValidity()) return;
