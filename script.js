@@ -212,7 +212,7 @@ backButtons.forEach(btn => {
     // Asegura que, al volver y acceder de nuevo, no queden datos del alumno anterior
     resetUploaderState({ newParticipant: true });
   });
-});
+
 
 // Al cargar la página, limpia posibles restos de una participación previa en este dispositivo
 window.addEventListener("load", () => {
@@ -222,6 +222,8 @@ window.addEventListener("load", () => {
     console.error(err);
   }
 });
+});
+
 // ---- APLICAR CONFIGURACIÓN ----
 function applyCentersToSelect() {
   if (!centerSelect) return;
@@ -1225,17 +1227,8 @@ document.getElementById("login-button").addEventListener("click", async () => {
   if (role === "uploader") {
     // Vuelve a refrescar por si el panel admin ha cambiado algo justo ahora (CBQD, centros, etc.)
     try { await loadGlobalConfig(true); } catch (_) {}
-
     applyConfigToUpload();
-
-    // Deja el wizard en un estado coherente con la config actual (incluido CBQD).
     resetUploaderState({ newParticipant: true });
-    // Recalcula el orden (por si cbqdEnabled ha cambiado) y fuerza que el paso 2 quede accesible.
-    try {
-      syncCbqdStepVisibility();
-      showWizardStepByIndex(0);
-    } catch (_) {}
-
     showSection("upload");
   } else if (role === "expert") {
     showSection("expert");
@@ -1355,17 +1348,25 @@ const cbqdScoreBox = document.getElementById("cbqd-scorebox");
 const cbqdStepEl = document.querySelector('.wizard-step[data-step="2"]');
 
 function syncCbqdStepVisibility() {
-  if (!cbqdStepEl) return;
-  if (globalConfig.cbqdEnabled) cbqdStepEl.classList.remove("hidden");
-  else cbqdStepEl.classList.add("hidden");
+  // El paso 2 debe existir siempre; aquí solo adaptamos el contenido interno.
+  const enabled = !!globalConfig.cbqdEnabled;
+  const hasItems = Array.isArray(globalConfig.cbqdItems) && globalConfig.cbqdItems.length > 0;
+
+  // Mensajes
+  if (cbqdDisabledBox) cbqdDisabledBox.classList.toggle("hidden", enabled);
+  if (cbqdWarningBox) cbqdWarningBox.classList.toggle("hidden", !enabled || hasItems);
+
+  // Contenido del formulario (ítems + scorebox). Los botones del wizard siguen disponibles.
+  if (cbqdItemsHost) cbqdItemsHost.style.display = (enabled && hasItems) ? "block" : "none";
+  if (cbqdScoreBox) cbqdScoreBox.classList.toggle("hidden", !(enabled && hasItems));
 }
 
+
 function computeWizardOrder() {
-  // Siempre existen los pasos 1..5 en el DOM, pero el paso 2 puede saltarse.
-  const order = [1];
-  if (globalConfig.cbqdEnabled) order.push(2);
-  order.push(3, 4, 5);
-  return order;
+  // Los pasos 1..5 siempre existen. Mantener el paso 2 (CBQD) en el flujo
+  // evita que el alumnado “pierda” el cuestionario por una configuración desactivada
+  // o por lecturas inconsistentes de configuración.
+  return [1, 2, 3, 4, 5];
 }
 
 let wizardOrder = computeWizardOrder();
@@ -1387,23 +1388,18 @@ function showWizardStepByIndex(idx) {
   const pct = (wizardIdx / (wizardOrder.length - 1)) * 100;
   if (wizardProgressBar) wizardProgressBar.style.width = `${isFinite(pct) ? pct : 0}%`;
 
-  // estado CBQD (informativo)
+  // Estado CBQD (paso 2): renderiza ítems solo si procede y ajusta avisos.
   if (stepNumber === 2) {
+    const enabled = !!globalConfig.cbqdEnabled;
     const items = globalConfig.cbqdItems || [];
-    if (!globalConfig.cbqdEnabled) {
-      cbqdDisabledBox?.classList.remove("hidden");
-      cbqdWarningBox?.classList.add("hidden");
-      cbqdScoreBox?.classList.add("hidden");
-    } else if (!items.length) {
-      cbqdDisabledBox?.classList.add("hidden");
-      cbqdWarningBox?.classList.remove("hidden");
-      cbqdScoreBox?.classList.add("hidden");
-      if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
-    } else {
-      cbqdDisabledBox?.classList.add("hidden");
-      cbqdWarningBox?.classList.add("hidden");
-      cbqdScoreBox?.classList.remove("hidden");
+    const hasItems = Array.isArray(items) && items.length > 0;
+
+    syncCbqdStepVisibility();
+
+    if (enabled && hasItems) {
       renderCbqd();
+    } else {
+      if (cbqdItemsHost) cbqdItemsHost.innerHTML = "";
     }
   }
 }
@@ -1468,13 +1464,12 @@ function resetUploaderState({ newParticipant = true } = {}) {
     microtaskAiCache.MT3_TRANSFORM = null;
   }
 
-  // Vuelve al paso 1 del wizard (y sincroniza CBQD con la configuración actual)
+  // Vuelve al paso 1 del wizard
   if (typeof showWizardStepByIndex === "function") {
     showWizardStepByIndex(0);
-    try { syncCbqdStepVisibility(); } catch (_) {}
   }
 
-// Nuevo participante (evita arrastrar identificación entre alumnos)
+  // Nuevo participante (evita arrastrar identificación entre alumnos)
   if (newParticipant) clearParticipantId();
 }
 
@@ -1844,11 +1839,16 @@ wizardBack4?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1
 wizardBack5?.addEventListener("click", () => showWizardStepByIndex(wizardIdx - 1));
 
 wizardNext2?.addEventListener("click", () => {
-  // Si CBQD está activo, no se puede avanzar hasta completarlo.
-  if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+  // Si el CBQD está activado *y* hay ítems configurados, exigimos que esté completo.
+  // Si está desactivado o no hay ítems, permitimos continuar (y ya mostramos el aviso correspondiente).
+  const enabled = !!globalConfig.cbqdEnabled;
+  const hasItems = Array.isArray(globalConfig.cbqdItems) && globalConfig.cbqdItems.length > 0;
+
+  if (enabled && hasItems) {
+    if (!validateCbqdComplete({ focusFirstMissing: true })) return;
+  }
   showWizardStepByIndex(wizardIdx + 1);
 });
-
 wizardNext3?.addEventListener("click", () => {
   const t1 = document.getElementById("task1-form");
   if (t1 && !t1.reportValidity()) return;
