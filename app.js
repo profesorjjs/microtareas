@@ -1,4 +1,8 @@
 // script.js (versión con Firebase + Firestore + IA ligera + IA local avanzada + IA profunda)
+console.log("[microtareas] app.js cargado v20260216-2");
+window.__MICROTAREAS_VERSION__ = "20260216-2";
+window.addEventListener("error", (e) => console.error("[microtareas] Error:", e?.error || e?.message || e));
+window.addEventListener("unhandledrejection", (e) => console.error("[microtareas] Promesa rechazada:", e?.reason || e));
 
 // ----- IMPORTS DE FIREBASE DESDE CDN -----
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
@@ -1322,7 +1326,10 @@ function showSection(sectionId) {
 }
 
 // ----- LOGIN / ACCESO POR ROL -----
-document.getElementById("login-button").addEventListener("click", async () => {
+const __loginBtn = document.getElementById("login-button");
+if (!__loginBtn) {
+  console.error("[microtareas] No se encuentra #login-button. Revisa index.html.");
+} else __loginBtn.addEventListener("click", async () => {
   const ok = await ensureConfigLoaded();
   // Reintento silencioso: en iOS/Safari Firestore puede fallar de forma intermitente
   if (!ok) {
